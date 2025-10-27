@@ -1,5 +1,6 @@
 import cv2
 import pickle
+from find_piece_places import process_chess_image
 
 def undistort(img, K, d):
     return cv2.undistort(img, K, d, None, K)
@@ -45,7 +46,15 @@ if __name__ == "__main__":
 
         cv2.imshow('Undistorted', frame_undistorted)
         cv2.imshow('Distorted', frame)
+
+        warp, vis, hough_vis, intersections = process_chess_image(frame_undistorted)
         
+        if len(intersections) >= 49:
+            # new_warp = warp.copy()
+            # new_vis = vis.copy()
+            cv2.imshow('warp', warp)
+            # cv2.imshow('vis', new_vis)
+
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
