@@ -6,7 +6,7 @@ def undistort(img, K, d):
 
 if __name__ == "__main__":
     # Replace with YOUR phone's IP and port from the DroidCam app
-    phone_ip = "192.168.1.101"
+    phone_ip = "10.19.204.195"
     port = "4747"
 
     # DroidCam streaming URLs - try these in order:

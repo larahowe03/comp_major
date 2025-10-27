@@ -56,7 +56,7 @@ def get_img_info(images, img_dir):
     return corners_list, pattern_points_list, h, w
 
 def capture_images():
-    phone_ip = "192.168.1.101"
+    phone_ip = "10.19.204.195"
     port = "4747"
 
     # DroidCam streaming URLs - try these in order:
