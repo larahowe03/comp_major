@@ -53,7 +53,7 @@ if __name__ == "__main__":
             # new_warp = warp.copy()
             # new_vis = vis.copy()
             cv2.imshow('warp', warp)
-            # cv2.imshow('vis', new_vis)
+            cv2.imshow('vis', vis)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
