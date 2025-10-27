@@ -15,11 +15,6 @@ def order_corners(pts):
     bottom_left = pts[np.argmax(diff)]
     return np.float32([top_left, top_right, bottom_right, bottom_left])
 
-def get_square_name(row, col):
-    file = chr(ord('a') + col)   # a–h
-    rank = str(8 - row)          # ranks 8→1
-    return file + rank
-
 # ------------------------
 # Hough Transform Functions
 # ------------------------
@@ -217,76 +212,9 @@ def non_axis_aligned_mask(gray, angle_tol=12, min_gmag=30):
     return mask_keep
 
 # ------------------------
-# Stage 2: Detect pieces (edges only, lines suppressed)
-# ------------------------
-def detect_pieces_edges(warp, min_area=200, angle_tol=15, min_gmag=40):
-    """
-    Detect chess pieces using edges/contours, suppressing checkerboard lines.
-    Combines orientation filtering + contour aspect ratio filtering.
-    """
-    board_size = warp.shape[0]
-    square_size = board_size // 8
-
-    gray = cv2.cvtColor(warp, cv2.COLOR_RGB2GRAY)
-    blur = cv2.GaussianBlur(gray, (5,5), 0)
-
-    # 1) Edge map
-    edges = cv2.Canny(blur, 60, 150)
-
-    # 2) Suppress axis-aligned edges (0°/90°)
-    gx = cv2.Sobel(blur, cv2.CV_32F, 1, 0, ksize=3)
-    gy = cv2.Sobel(blur, cv2.CV_32F, 0, 1, ksize=3)
-    mag = cv2.magnitude(gx, gy)
-    ang = (np.rad2deg(np.arctan2(gy, gx)) + 180.0) % 180.0
-
-    near_h = (np.abs(ang - 0.0) < angle_tol) | (np.abs(ang - 180.0) < angle_tol)
-    near_v = (np.abs(ang - 90.0) < angle_tol)
-    grid_like = (near_h | near_v) & (mag > float(min_gmag))
-    keep_mask = np.where(grid_like, 0, 255).astype(np.uint8)
-
-    edges_no_lines = cv2.bitwise_and(edges, keep_mask)
-
-    # 3) Morphology (blob cleanup)
-    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3,3))
-    mask = cv2.dilate(edges_no_lines, k, iterations=1)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, k, iterations=4)
-
-    # 4) Contour detection
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    detections = {}
-    clean_mask = np.zeros_like(mask)
-
-    for c in contours:
-        area = cv2.contourArea(c)
-        if area < min_area:
-            continue
-
-        x,y,w,h = cv2.boundingRect(c)
-        aspect = max(w,h) / (min(w,h)+1e-5)
-
-        # filter out long skinny lines (likely checkerboard edges)
-        if aspect > 6 and area < 3000:
-            continue
-
-        cv2.drawContours(clean_mask, [c], -1, 255, -1)
-
-        contour_poly = cv2.approxPolyDP(c, 5, True)
-        bottom_point = tuple(c[c[:,:,1].argmax()][0])
-        col = int(bottom_point[0] // square_size)
-        row = int(bottom_point[1] // square_size)
-
-        if 0 <= col < 8 and 0 <= row < 8:
-            square = get_square_name(row, col)
-            if square not in detections or area > detections[square][1]:
-                detections[square] = (bottom_point, area, contour_poly)
-
-    return detections, clean_mask, edges_no_lines, keep_mask
-
-# ------------------------
 # Main pipeline
 # ------------------------
-def process_chess_image(img, show_hough=True):
+def process_chess_image(img):
     warp = detect_board(img)
     
     # Detect grid intersections using Hough Transform
@@ -294,26 +222,5 @@ def process_chess_image(img, show_hough=True):
     print(f"Detected {len(h_lines)} horizontal lines")
     print(f"Detected {len(v_lines)} vertical lines")
     print(f"Found {len(intersections)} intersections")
-    
-    detections, mask, edges_no_lines, keep_mask = detect_pieces_edges(
-        warp, min_area=200, angle_tol=12, min_gmag=30
-    )
 
-    vis = warp.copy()
-    for sq, (pt, area, contour_poly) in detections.items():
-        cv2.drawContours(vis, [contour_poly], -1, (0,255,0), 2)
-        cv2.circle(vis, pt, 6, (0,0,255), -1)
-        cv2.putText(vis, sq, (pt[0]-20, pt[1]-10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
-
-    return warp, vis, hough_vis, intersections
-
-# Example usage:
-# img = cv2.imread('chessboard.jpg')
-# warp, piece_vis, hough_vis, intersections = process_chess_image(img)
-# 
-# plt.figure(figsize=(18, 6))
-# plt.subplot(1, 3, 1); plt.title("Warped Board"); plt.imshow(warp); plt.axis("off")
-# plt.subplot(1, 3, 2); plt.title(f"Hough Lines ({len(intersections)} intersections)"); plt.imshow(hough_vis); plt.axis("off")
-# plt.subplot(1, 3, 3); plt.title("Detected Pieces"); plt.imshow(piece_vis); plt.axis("off")
-# plt.show()
+    return warp, hough_vis, intersections
