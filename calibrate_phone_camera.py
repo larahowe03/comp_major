@@ -39,15 +39,11 @@ def get_img_info(images, img_dir):
         cv2.drawChessboardCorners(imgc, grid_size, corners2, ret)
 
         # Build numpy array containing (x,y,z) coordinates of corners, relative to board itself
-        cell_size = 0.028 # size of each checkerboard square
         pattern_points = np.zeros((np.prod(grid_size), 3), np.float32)
         pattern_points[:, :2] = np.indices(grid_size).T.reshape(-1, 2) # fill-in X-Y points of grid
-        pattern_points = cell_size*pattern_points # scale by the size of each grid cell
         pattern_points_list.append(pattern_points)
 
         h, w = img.shape[:2]
-
-        print(i)
     
     if len(corners_list) == 0:
         print("No valid images found!")
@@ -56,10 +52,10 @@ def get_img_info(images, img_dir):
     return corners_list, pattern_points_list, h, w
 
 def capture_images():
+    # Streaming
     phone_ip = "10.19.204.195"
     port = "4747"
 
-    # DroidCam streaming URLs - try these in order:
     urls = [
         f"http://{phone_ip}:{port}/video",
         f"http://{phone_ip}:{port}/mjpegfeed",
@@ -75,43 +71,34 @@ def capture_images():
         cap.release()
 
     if not cap or not cap.isOpened():
-        print("Could not connect. Check:")
-        print("1. Phone and laptop on same WiFi")
-        print("2. IP address is correct")
-        print("3. DroidCam app is running")
+        print("Can't connect")
         exit()
 
-    # Create directory for saved images
     save_dir = "calibration_images"
     os.makedirs(save_dir, exist_ok=True)
 
-    # Variables for auto-saving
+    # Saving every 2 seconds
     last_save_time = time.time()
-    save_interval = 2  # seconds
+    save_interval = 2
     image_count = 0
-
-    print(f"\nCapturing images every {save_interval} seconds...")
-    print("Press 'q' to quit")
-    print("Press 's' to save immediately")
-    print(f"Images will be saved to: {save_dir}/\n")
 
     while True:
         ret, frame = cap.read()
         if not ret:
-            print("Connection lost")
+            print("Disconnected")
             break
         
         current_time = time.time()
         
-        # Auto-save every 2 seconds
+        # Save every 2 seconds
         if current_time - last_save_time >= save_interval:
             filename = os.path.join(save_dir, f"image_{image_count:04d}.png")
             cv2.imwrite(filename, frame)
-            print(f"✓ Saved: {filename}")
+            print(f"Saved: {filename}")
             image_count += 1
             last_save_time = current_time
         
-        # Show countdown timer on frame
+        # Put information in frame
         time_remaining = save_interval - (current_time - last_save_time)
         cv2.putText(frame, f"Next capture in: {time_remaining:.1f}s", 
                     (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
@@ -123,12 +110,6 @@ def capture_images():
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):
             break
-        elif key == ord('s'):
-            # Manual save
-            filename = os.path.join(save_dir, f"image_{image_count:04d}.png")
-            cv2.imwrite(filename, frame)
-            print(f"✓ Manual save: {filename}")
-            image_count += 1
 
     cap.release()
     cv2.destroyAllWindows()
@@ -174,20 +155,14 @@ if __name__ == "__main__":
         with open("calibration_coefficients.pkl", "wb") as f:
             pickle.dump(calibration_data, f)
         
-        print("\n" + "="*60)
-        print("CALIBRATION COMPLETE!")
-        print("="*60)
+        print("Finished calibration\n")
         print(f"Reprojection error: {ret:.4f}")
-        print(f"\nCamera matrix:\n{K}")
-        print(f"\nDistortion coefficients:\n{d}")
-        print("\n✓ Saved to: calibration_coefficients.pkl")
-        print("="*60)
-
+        print(f"\nCamera matrix (K):\n{K}")
+        print(f"\nDistortion coefficients (d):\n{d}")
 
     elif action == "3":
         if not os.path.exists("calibration_coefficients.pkl"):
-            print("Error: calibration_coefficients.pkl not found!")
-            print("Run option 1 first to extract calibration data.")
+            print("calibration_coefficients.pkl not found")
             exit()
 
         with open("calibration_coefficients.pkl", "rb") as f:
@@ -198,14 +173,11 @@ if __name__ == "__main__":
         ret = data['reprojection_error']
         img_size = data['image_size']
 
-        print("\n" + "="*60)
-        print("CALIBRATION DATA")
-        print("="*60)
+        print("Finished calibration\n")
         print(f"Reprojection error: {ret:.4f}")
         print(f"Image size: {img_size}")
         print(f"\nCamera matrix (K):\n{K}")
         print(f"\nDistortion coefficients (d):\n{d}")
-        print("="*60)
     
     else:
-        print("Invalid option. Please choose 1 or 2.")
+        pass
