@@ -6,8 +6,8 @@ from torchvision import models, transforms
 from PIL import Image
 import numpy as np
 
-img = cv2.imread("img.png")
-img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+img = cv2.imread("img.jpg")
+
 
 warp, hough_vis, intersections = process_chess_image(img)
 
@@ -15,12 +15,12 @@ plt.imshow(warp)
 plt.show()
 
 # 1. Load the trained model
-classes = ['Black bishop', 'Black king', 'Black knight', 'Black pawn', 'Black queen', 'Black rook', 'Empty',
-           'White bishop', 'White king', 'White knight', 'White pawn', 'White queen', 'White rook']
+classes = ['black_bishop', 'black_king', 'black_knight', 'black_pawn', 'black_queen', 'black_rook', 'empty',
+           'white_bishop', 'white_king', 'white_knight', 'white_pawn', 'white_queen', 'white_rook']
 
 model = models.resnet18()
 model.fc = torch.nn.Linear(model.fc.in_features, len(classes))
-model.load_state_dict(torch.load('resnet_chess.pkl', map_location='cpu'))
+model.load_state_dict(torch.load('resnet_chess_finetuned.pkl', map_location='cpu'))
 model.eval()
 
 transform = transforms.Compose([
