@@ -2,7 +2,6 @@ train: C:\Users\tumal\OneDrive\Desktop\AMME5710\ASSIGNMENTS\Major\comp_major\dat
 val: C:\Users\tumal\OneDrive\Desktop\AMME5710\ASSIGNMENTS\Major\comp_major\dataset_yolo\images\val
 test: C:\Users\tumal\OneDrive\Desktop\AMME5710\ASSIGNMENTS\Major\comp_major\dataset_yolo\images\test
 
-
 nc: 13
 names: [
   'black_bishop',

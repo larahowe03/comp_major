@@ -73,7 +73,7 @@ for class_dir in source_dir.iterdir():
             with open(label_path, "w") as f:
                 # YOLO expects: class_id x_center y_center width height (all normalized)
                 # For classification, we don’t have bounding boxes, so we can use full frame (0.5 0.5 1 1)
-                f.write(f"{class_id} 0.5 0.5 1 1\n")
+                f.write(f"{class_id} 0.5 0.65 0.25 0.45\n")
 
     print(f"✅ {class_dir.name}: {n_total} images split into train/val/test and labeled.")
 
