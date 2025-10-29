@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # ------------------------
-# Helpers
+# Helper: order corners
 # ------------------------
 def order_corners(pts):
     """Orders 4 corner points as [top-left, top-right, bottom-right, bottom-left]."""
@@ -16,211 +16,131 @@ def order_corners(pts):
     return np.float32([top_left, top_right, bottom_right, bottom_left])
 
 # ------------------------
-# Hough Transform Functions
+# Helper: line intersection
 # ------------------------
 def line_intersection(line1, line2):
-    """
-    Find intersection point of two lines in rho-theta format.
-    Returns (x, y) or None if lines are parallel.
-    """
     rho1, theta1 = line1
     rho2, theta2 = line2
-    
-    # Convert to ax + by = c format
-    a1 = np.cos(theta1)
-    b1 = np.sin(theta1)
-    c1 = rho1
-    
-    a2 = np.cos(theta2)
-    b2 = np.sin(theta2)
-    c2 = rho2
-    
-    # Solve system of equations
+    a1, b1 = np.cos(theta1), np.sin(theta1)
+    a2, b2 = np.cos(theta2), np.sin(theta2)
     det = a1 * b2 - a2 * b1
-    if abs(det) < 1e-10:  # parallel lines
+    if abs(det) < 1e-10:
         return None
-    
-    x = (b2 * c1 - b1 * c2) / det
-    y = (a1 * c2 - a2 * c1) / det
-    
+    x = (b2 * rho1 - b1 * rho2) / det
+    y = (a1 * rho2 - a2 * rho1) / det
     return (int(x), int(y))
 
-def are_lines_similar(line1, line2, rho_threshold=20, theta_threshold=np.pi/18):
-    """Check if two lines are similar (to merge duplicates)."""
-    rho1, theta1 = line1
-    rho2, theta2 = line2
-    
-    return (abs(rho1 - rho2) < rho_threshold and 
-            abs(theta1 - theta2) < theta_threshold)
 
-def merge_similar_lines(lines, rho_threshold=20, theta_threshold=np.pi/18):
-    """Merge similar lines to remove duplicates."""
-    if lines is None or len(lines) == 0:
-        return []
-    
-    merged = []
-    used = [False] * len(lines)
-    
-    for i, line1 in enumerate(lines):
-        if used[i]:
-            continue
-        
-        # Find all similar lines
-        similar = [line1]
-        for j, line2 in enumerate(lines[i+1:], i+1):
-            if not used[j] and are_lines_similar(line1, line2, rho_threshold, theta_threshold):
-                similar.append(line2)
-                used[j] = True
-        
-        # Average the similar lines
-        avg_rho = np.mean([l[0] for l in similar])
-        avg_theta = np.mean([l[1] for l in similar])
-        merged.append((avg_rho, avg_theta))
-        used[i] = True
-    
-    return merged
-
-def separate_lines(lines, theta_threshold=np.pi/4):
-    """Separate lines into horizontal and vertical groups."""
-    horizontal = []
-    vertical = []
-    
-    for rho, theta in lines:
-        # Vertical lines: theta near 0 or π
-        if theta < theta_threshold or theta > np.pi - theta_threshold:
-            vertical.append((rho, theta))
-        # Horizontal lines: theta near π/2
-        else:
-            horizontal.append((rho, theta))
-    
-    return horizontal, vertical
-
-def detect_grid_intersections(img, min_line_length=100, max_line_gap=10):
-    """
-    Use Hough Transform to detect grid lines and count intersections.
-    Returns intersections and visualization data.
-    """
+def detect_board_hough(img, board_size=800, debug=False):
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    blur = cv2.GaussianBlur(gray, (5, 5), 0)
+    blur = cv2.GaussianBlur(gray, (5,5), 0)
     edges = cv2.Canny(blur, 50, 150)
-    
-    # Hough Line Transform
-    lines = cv2.HoughLines(edges, rho=1, theta=np.pi/180, threshold=150)
-    
+
+    lines = cv2.HoughLines(edges, 1, np.pi/180, threshold=200)
     if lines is None:
-        return [], [], [], img.copy()
-    
-    # Convert to list of (rho, theta) tuples
-    lines = [(line[0][0], line[0][1]) for line in lines]
-    
-    # Merge similar lines
-    lines = merge_similar_lines(lines, rho_threshold=30, theta_threshold=np.pi/36)
-    
-    # Separate into horizontal and vertical
-    h_lines, v_lines = separate_lines(lines)
-    
-    # Find all intersections
-    intersections = []
-    for h_line in h_lines:
-        for v_line in v_lines:
-            pt = line_intersection(h_line, v_line)
-            if pt is not None:
-                x, y = pt
-                # Check if intersection is within image bounds
-                if 0 <= x < img.shape[1] and 0 <= y < img.shape[0]:
-                    intersections.append(pt)
-    
-    # Create visualization
-    vis = img.copy()
-    
-    # Draw horizontal lines (blue)
-    for rho, theta in h_lines:
-        a = np.cos(theta)
-        b = np.sin(theta)
-        x0 = a * rho
-        y0 = b * rho
-        x1 = int(x0 + 2000 * (-b))
-        y1 = int(y0 + 2000 * (a))
-        x2 = int(x0 - 2000 * (-b))
-        y2 = int(y0 - 2000 * (a))
-        cv2.line(vis, (x1, y1), (x2, y2), (255, 0, 0), 2)
-    
-    # Draw vertical lines (green)
-    for rho, theta in v_lines:
-        a = np.cos(theta)
-        b = np.sin(theta)
-        x0 = a * rho
-        y0 = b * rho
-        x1 = int(x0 + 2000 * (-b))
-        y1 = int(y0 + 2000 * (a))
-        x2 = int(x0 - 2000 * (-b))
-        y2 = int(y0 - 2000 * (a))
-        cv2.line(vis, (x1, y1), (x2, y2), (0, 255, 0), 2)
-    
-    # Draw intersections (red circles)
-    for pt in intersections:
-        cv2.circle(vis, pt, 5, (255, 0, 0), -1)
-    
-    return intersections, h_lines, v_lines, vis
+        return None, [], [], []
+
+    horizontals, verticals = [], []
+    for l in lines:
+        rho, theta = l[0]
+        if abs(theta - np.pi/2) < np.pi/6:   # vertical
+            verticals.append((rho, theta))
+        elif abs(theta) < np.pi/6 or abs(theta - np.pi) < np.pi/6:  # horizontal
+            horizontals.append((rho, theta))
+
+    if not horizontals or not verticals:
+        return None, horizontals, verticals, []
+
+    # extreme lines
+    left = min(verticals, key=lambda l: l[0])
+    right = max(verticals, key=lambda l: l[0])
+    top = min(horizontals, key=lambda l: l[0])
+    bottom = max(horizontals, key=lambda l: l[0])
+
+    # intersections
+    tl = line_intersection(top, left)
+    tr = line_intersection(top, right)
+    br = line_intersection(bottom, right)
+    bl = line_intersection(bottom, left)
+    intersections = [tl,tr,br,bl]
+
+    if None in intersections:
+        return None, horizontals, verticals, intersections
+
+    # warp
+    pts_src = order_corners(np.float32(intersections))
+    pts_dst = np.float32([[0,0],[board_size,0],[board_size,board_size],[0,board_size]])
+    M = cv2.getPerspectiveTransform(pts_src, pts_dst)
+    warp = cv2.warpPerspective(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), M, (board_size, board_size))
+
+    if debug:
+        vis = img.copy()
+        # draw lines
+        for (rho,theta) in horizontals + verticals:
+            a, b = np.cos(theta), np.sin(theta)
+            x0, y0 = a*rho, b*rho
+            x1 = int(x0 + 2000*(-b))
+            y1 = int(y0 + 2000*(a))
+            x2 = int(x0 - 2000*(-b))
+            y2 = int(y0 - 2000*(a))
+            cv2.line(vis, (x1,y1), (x2,y2), (0,255,0), 2)
+            
+        return warp, horizontals, verticals, intersections, vis
+
+    return warp, horizontals, verticals, intersections, None
 
 # ------------------------
-# Stage 1: Detect and warp chessboard
+# Main: hybrid detection
 # ------------------------
 def detect_board(img, board_size=800):
-    """Detects chessboard outer contour and warps it to a top-down view."""
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     blur = cv2.GaussianBlur(gray, (5,5), 0)
     edges = cv2.Canny(blur, 50, 150)
 
+    # Morphological close to connect edges
+    kernel = np.ones((5,5), np.uint8)
+    edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
+
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    contour = max(contours, key=cv2.contourArea)
+    contours = sorted(contours, key=cv2.contourArea, reverse=True)
 
-    epsilon = 0.02 * cv2.arcLength(contour, True)
-    approx = cv2.approxPolyDP(contour, epsilon, True)
-    hull = cv2.convexHull(approx)
-    if len(hull) > 4:
-        hull = cv2.approxPolyDP(hull, epsilon, True)
+    pts_src = None
+    for c in contours:
+        peri = cv2.arcLength(c, True)
+        for eps in [0.01, 0.02, 0.03, 0.05]:
+            approx = cv2.approxPolyDP(c, eps * peri, True)
+            if len(approx) == 4:
+                pts_src = np.float32([pt[0] for pt in approx])
+                pts_src = order_corners(pts_src)
+                break
+        if pts_src is not None:
+            break
 
-    pts_src = np.float32([pt[0] for pt in hull])
-    pts_src = order_corners(pts_src)
+    # If contour failed, try Hough
+    if pts_src is None:
+        print("Contour failed, trying Hough fallback...")
+        return detect_board_hough(img, board_size)
 
-    pts_dst = np.float32([[0,0], [board_size,0], [board_size,board_size], [0,board_size]])
+    # Warp from contour
+    pts_dst = np.float32([[0,0],[board_size,0],[board_size,board_size],[0,board_size]])
     M = cv2.getPerspectiveTransform(pts_src, pts_dst)
     warp = cv2.warpPerspective(img_rgb, M, (board_size, board_size))
     return warp
 
-# ------------------------
-# Orientation-based grid suppression
-# ------------------------
-def non_axis_aligned_mask(gray, angle_tol=12, min_gmag=30):
-    """
-    Keep edges that are NOT near 0°/90°; suppress axis-aligned edges (checker lines).
-    Returns a 0/255 uint8 mask to AND with an edge map.
-    """
-    gx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
-    gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
-    mag = cv2.magnitude(gx, gy)
-    ang = (np.rad2deg(np.arctan2(gy, gx)) + 180.0) % 180.0  # [0,180)
 
-    # near 0° or 180° (horizontal) or near 90° (vertical)
-    near_h = (np.abs(ang - 0.0) < angle_tol) | (np.abs(ang - 180.0) < angle_tol)
-    near_v = (np.abs(ang - 90.0) < angle_tol)
-    grid_like = (near_h | near_v) & (mag > float(min_gmag))
-
-    mask_keep = np.where(grid_like, 0, 255).astype(np.uint8)
-    return mask_keep
-
-# ------------------------
-# Main pipeline
-# ------------------------
-def process_chess_image(img):
-    warp = detect_board(img)
+def process_chess_image(path):
+    img = cv2.imread(path)
     
-    # Detect grid intersections using Hough Transform
-    intersections, h_lines, v_lines, hough_vis = detect_grid_intersections(warp)
-    print(f"Detected {len(h_lines)} horizontal lines")
-    print(f"Detected {len(v_lines)} vertical lines")
-    print(f"Found {len(intersections)} intersections")
+    warp = detect_board(img)
+    warp2 = detect_board(warp)
+    
+    return cv2.cvtColor(warp2, cv2.COLOR_BGR2RGB)
 
-    return warp, hough_vis, intersections
+
+
+# warp = process_chess_image(img)
+# warp = process_chess_image("img.png")
+# plt.imshow(warp)
+# plt.show()
+

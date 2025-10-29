@@ -6,10 +6,10 @@ from torchvision import models, transforms
 from PIL import Image
 import numpy as np
 
-img = cv2.imread("img.jpg")
+# img = cv2.imread("img.png")
+path = "img.png"
 
-
-warp, hough_vis, intersections = process_chess_image(img)
+warp = process_chess_image(path)
 
 plt.imshow(warp)
 plt.show()

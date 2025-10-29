@@ -7,7 +7,7 @@ import os
 # 1️⃣ Config
 # ----------------------------
 model_path = "runs_chess/chess_yolov83/weights/best.pt"  # your trained model
-test_image = "dataset_yolo/images/test/IMG_1127.png"    # image to test
+test_image = "dataset_yolo/images/test/IMG_1179.png"    # image to test
 save_dir = "runs_chess/test_results"                    # where to save
 os.makedirs(save_dir, exist_ok=True)
 
