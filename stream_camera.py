@@ -3,6 +3,27 @@ import pickle
 from warp_board import process_chess_image
 from test_YOLOv8 import test_yolo
 import matplotlib.pyplot as plt
+from test_ResNet import resynet_test
+import numpy as np
+
+def clahethis(img):
+    # Convert to LAB color space
+    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+    
+    # Split into L, A, B channels
+    l, a, b = cv2.split(lab)
+    
+    # Apply CLAHE to L channel
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    l_clahe = clahe.apply(l)
+    
+    # Merge channels back
+    lab_clahe = cv2.merge([l_clahe, a, b])
+    
+    # Convert back to BGR
+    img_clahe = cv2.cvtColor(lab_clahe, cv2.COLOR_LAB2BGR)
+    
+    return img_clahe
 
 def undistort(img, K, d):
     return cv2.undistort(img, K, d, None, K)
@@ -51,18 +72,22 @@ if __name__ == "__main__":
         processed = process_chess_image(frame_undistorted)
         processed = cv2.cvtColor(processed, cv2.COLOR_BGR2RGB)
         
+        clahed = clahethis(processed)
+
         if ret:
             cv2.imshow('Processed', processed)
-            cv2.imwrite("blah.png", processed)
-            yolod = test_yolo("blah.png")
+            # cv2.imwrite("blah.png", processed)
+            # yolod = resynet_test(processed)
         
 
         cv2.imshow('Undistorted', frame_undistorted)
         cv2.imshow('Distorted', frame)
-        if yolod is not None and yolod.size > 0:
-            cv2.imshow('yolod', yolod)
-        else:
-            print("⚠️ Skipping frame — yolod is empty or invalid.")
+        cv2.imshow('clahed', clahed)
+        # cv2.imshow('thresh', thresh)
+        # if yolod is not None and yolod.size > 0:
+        #     cv2.imshow('yolod', yolod)
+        # else:
+        #     print("⚠️ Skipping frame — yolod is empty or invalid.")
 
         
         if cv2.waitKey(1) & 0xFF == ord('q'):
