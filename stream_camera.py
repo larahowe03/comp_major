@@ -4,33 +4,68 @@ from warp_board import process_chess_image
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
 from matplotlib import colors
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 def colour_space(im):
-    height = im.shape[0]
-    width = im.shape[1]
-    pixel_colours = im.reshape((height*width, 3))
-    norm = colors.Normalize(vmin=-1.0,vmax=1.0)
-    norm.autoscale(pixel_colours)
-    pixel_colours = norm(pixel_colours).tolist()
     # Convert to HSV
-    im_hsv = cv2.cvtColor(im, cv2.COLOR_RGB2HSV)
-
-    # visualise the colours in a RGB colour space
+    im_hsv = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
     H, S, V = cv2.split(im_hsv)
     
-    fig = plt.figure()
+    # Prepare pixel colors for visualization
+    height, width = im.shape[:2]
+    pixel_colours = im.reshape((height * width, 3)) / 255.0  # Normalize to 0-1
+    pixel_colours = pixel_colours[:, ::-1]  # BGR to RGB
+    
+    # Enable interactive mode
+    plt.ion()
+    
+    # Create or clear figure
+    plt.clf()
+    fig = plt.gcf()
+    fig.set_size_inches(12, 10)
     axis = fig.add_subplot(1, 1, 1, projection="3d")
-    axis.scatter(H.flatten(), S.flatten(), V.flatten(), facecolors=pixel_colours, marker='.')
-    axis.set_xlabel("Hue")
-    axis.set_ylabel("Saturation")
-    axis.set_zlabel("Value")
-    # axis.view_init(30,70,0) # (elevation, azimuth, roll): try adjusting to view from different perspectives
-
+    
+    # Downsample for performance
+    step = max(1, (height * width) // 10000)
+    
+    axis.scatter(H.flatten()[::step], 
+                 S.flatten()[::step], 
+                 V.flatten()[::step], 
+                 c=pixel_colours[::step], 
+                 marker='.', 
+                 s=1,
+                 alpha=0.5)
+    
+    axis.set_xlabel("Hue", fontsize=12)
+    axis.set_ylabel("Saturation", fontsize=12)
+    axis.set_zlabel("Value", fontsize=12)
+    axis.set_title("HSV Color Space", fontsize=14)
+    axis.view_init(elev=30, azim=45)
+    
     plt.tight_layout()
+    plt.draw()
+    plt.pause(0.001)  # Small pause to update display
 
-
-
+def clahethis(img):
+    # Convert to LAB color space
+    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+    
+    # Split into L, A, B channels
+    l, a, b = cv2.split(lab)
+    
+    # Apply CLAHE to L channel
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    l_clahe = clahe.apply(l)
+    
+    # Merge channels back
+    lab_clahe = cv2.merge([l_clahe, a, b])
+    
+    # Convert back to BGR
+    img_clahe = cv2.cvtColor(lab_clahe, cv2.COLOR_LAB2BGR)
+    
+    return img_clahe
 
 def undistort(img, K, d):
     return cv2.undistort(img, K, d, None, K)
@@ -81,6 +116,8 @@ if __name__ == "__main__":
         
         clahed = clahethis(processed)
 
+        colour_space(clahed)
+
         if ret:
             cv2.imshow('Processed', processed)
             # cv2.imwrite("blah.png", processed)
@@ -90,6 +127,7 @@ if __name__ == "__main__":
         cv2.imshow('Undistorted', frame_undistorted)
         cv2.imshow('Distorted', frame)
         cv2.imshow('clahed', clahed)
+        # cv2.imshow('hsv', hsv)
         # cv2.imshow('thresh', thresh)
         # if yolod is not None and yolod.size > 0:
         #     cv2.imshow('yolod', yolod)
