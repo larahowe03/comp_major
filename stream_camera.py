@@ -1,4 +1,5 @@
 import cv2
+from warp_board import process_chess_image
 
 def calibrate_board(img):
     grid_size = (8, 6)  # (horizontal, vertical) number of corners on board
@@ -22,7 +23,7 @@ def calibrate_board(img):
 
 if __name__ == "__main__":
     # Replace with YOUR phone's IP and port from the DroidCam app
-    phone_ip = "192.168.1.101"
+    phone_ip = "10.19.204.143"
     port = "4747"
 
     # DroidCam streaming URLs - try these in order:
@@ -54,8 +55,11 @@ if __name__ == "__main__":
             break
 
         frame_drawn = calibrate_board(frame)
+        processed = process_chess_image(frame)
         
-        cv2.imshow('Phone Camera', frame_drawn)
+        if ret:
+            cv2.imshow('Phone Camera', frame_drawn)
+            cv2.imshow('Processed', processed)
         
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
