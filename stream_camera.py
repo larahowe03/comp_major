@@ -6,6 +6,7 @@ from matplotlib import cm
 from matplotlib import colors
 import matplotlib.pyplot as plt
 import numpy as np
+from mask_out import mask_out
 
 def contour_detect(im):
     # Convert to grayscale
@@ -85,6 +86,7 @@ def mask_brown(im):
     result = cv2.bitwise_and(im, im, mask=mask_inv)
     
     return result
+
 def colour_space(im):
     # Convert to HSV
     im_hsv = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
@@ -188,8 +190,11 @@ if __name__ == "__main__":
 
         frame_undistorted = undistort(frame, K, d)
 
-        processed = process_chess_image(frame_undistorted)
+        processed, blah = process_chess_image(frame_undistorted)
+        if processed is None:
+            continue
         processed = cv2.cvtColor(processed, cv2.COLOR_BGR2RGB)
+
         
         clahed = clahethis(processed)
 
@@ -198,6 +203,7 @@ if __name__ == "__main__":
         browk_mask = mask_brown(processed)
 
         img = contour_detect(clahed)
+        masekd = mask_out(processed)
 
         if ret:
             cv2.imshow('Processed', processed)
@@ -206,10 +212,12 @@ if __name__ == "__main__":
         
 
         cv2.imshow('Undistorted', frame_undistorted)
+        cv2.imshow('blah', blah)
         cv2.imshow('Distorted', frame)
         cv2.imshow('clahed', clahed)
         cv2.imshow('browk_mask', browk_mask)
         cv2.imshow('img', img)
+        cv2.imshow('masekd', masekd)
         # cv2.imshow('hsv', hsv)
         # cv2.imshow('thresh', thresh)
         # if yolod is not None and yolod.size > 0:
