@@ -1,29 +1,20 @@
 import cv2
+<<<<<<< HEAD
 from warp_board import process_chess_image
+=======
+import pickle
+>>>>>>> 4a788cbef5b65221c2a886571995a054fbd66f39
 
-def calibrate_board(img):
-    grid_size = (8, 6)  # (horizontal, vertical) number of corners on board
-
-    # Convert to grayscale for detection
-    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-    # Detect and refine corners
-    ret, corners = cv2.findChessboardCorners(img_gray, grid_size, None)
-    
-    if ret and corners is not None and len(corners) > 0:
-        print("Detected corners")
-        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
-        window_search = (11, 11)
-        corners2 = cv2.cornerSubPix(img_gray, corners, window_search, (-1, -1), criteria)
-
-        # Draw on the original color image
-        cv2.drawChessboardCorners(img, grid_size, corners2, ret)
-
-    return img
+def undistort(img, K, d):
+    return cv2.undistort(img, K, d, None, K)
 
 if __name__ == "__main__":
     # Replace with YOUR phone's IP and port from the DroidCam app
+<<<<<<< HEAD
     phone_ip = "10.19.204.143"
+=======
+    phone_ip = "10.19.204.195"
+>>>>>>> 4a788cbef5b65221c2a886571995a054fbd66f39
     port = "4747"
 
     # DroidCam streaming URLs - try these in order:
@@ -48,11 +39,18 @@ if __name__ == "__main__":
         print("3. DroidCam app is running")
         exit()
 
+    with open("calibration_coefficients.pkl", "rb") as f:
+        data = pickle.load(f)
+
+    K = data['camera_matrix']
+    d = data['distortion_coeffs']
+
     while True:
         ret, frame = cap.read()
         if not ret:
             print("Connection lost")
             break
+<<<<<<< HEAD
 
         frame_drawn = calibrate_board(frame)
         processed = process_chess_image(frame)
@@ -60,9 +58,17 @@ if __name__ == "__main__":
         if ret:
             cv2.imshow('Phone Camera', frame_drawn)
             cv2.imshow('Processed', processed)
+=======
+        
+        frame_undistorted = undistort(frame, K, d)
+
+        cv2.imshow('Undistorted', frame_undistorted)
+        cv2.imshow('Distorted', frame)
+>>>>>>> 4a788cbef5b65221c2a886571995a054fbd66f39
         
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
     cap.release()
     cv2.destroyAllWindows()
+
