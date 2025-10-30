@@ -120,7 +120,11 @@ def detect_board(img, board_size=800):
     # If contour failed, try Hough
     if pts_src is None:
         print("Contour failed, trying Hough fallback...")
-        return detect_board_hough(img, board_size)
+        warp, horizontals, verticals, intersections, vis = detect_board_hough(img, board_size)
+        if warp is not None:
+            return warp
+        else:
+            return img
 
     # Warp from contour
     pts_dst = np.float32([[0,0],[board_size,0],[board_size,board_size],[0,board_size]])
