@@ -5,6 +5,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
 from matplotlib import colors
 
+
 def colour_space(im):
     height = im.shape[0]
     width = im.shape[1]
