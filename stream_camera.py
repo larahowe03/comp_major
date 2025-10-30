@@ -1,20 +1,13 @@
 import cv2
-<<<<<<< HEAD
-from warp_board import process_chess_image
-=======
 import pickle
->>>>>>> 4a788cbef5b65221c2a886571995a054fbd66f39
+from warp_board import process_chess_image
 
 def undistort(img, K, d):
     return cv2.undistort(img, K, d, None, K)
 
 if __name__ == "__main__":
     # Replace with YOUR phone's IP and port from the DroidCam app
-<<<<<<< HEAD
     phone_ip = "10.19.204.143"
-=======
-    phone_ip = "10.19.204.195"
->>>>>>> 4a788cbef5b65221c2a886571995a054fbd66f39
     port = "4747"
 
     # DroidCam streaming URLs - try these in order:
@@ -50,21 +43,16 @@ if __name__ == "__main__":
         if not ret:
             print("Connection lost")
             break
-<<<<<<< HEAD
 
-        frame_drawn = calibrate_board(frame)
         processed = process_chess_image(frame)
         
         if ret:
-            cv2.imshow('Phone Camera', frame_drawn)
-            cv2.imshow('Processed', processed)
-=======
+            cv2.imshow('Processed', cv2.cvtColor(processed, cv2.COLOR_BGR2RGB))
         
         frame_undistorted = undistort(frame, K, d)
 
         cv2.imshow('Undistorted', frame_undistorted)
         cv2.imshow('Distorted', frame)
->>>>>>> 4a788cbef5b65221c2a886571995a054fbd66f39
         
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break

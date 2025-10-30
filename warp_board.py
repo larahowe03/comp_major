@@ -134,26 +134,14 @@ def detect_board(img, board_size=800):
 
 
 def process_chess_image(img):
-    # img = cv2.imread(path)
-    
     try:
         img = detect_board(img)
-        try:
-            img = detect_board(img)
-        except:
-            pass
-            try:
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            except:
-                pass
     except:
         pass
+        # try:
+        #     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        # except:
+        #     pass
     return img
 
-
-
-# warp = process_chess_image(img)
-# warp = process_chess_image("img.png")
-# plt.imshow(warp)
-# plt.show()
 
