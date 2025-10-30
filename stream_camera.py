@@ -7,6 +7,84 @@ from matplotlib import colors
 import matplotlib.pyplot as plt
 import numpy as np
 
+def contour_detect(im):
+    # Convert to grayscale
+    gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+    
+    # Apply bilateral filter to reduce noise while keeping edges sharp
+    filtered = cv2.bilateralFilter(gray, 9, 75, 75)
+    
+    # Apply CLAHE for better contrast
+    # clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    # enhanced = clahe.apply(filtered)
+    
+    # Adaptive thresholding for better edge detection
+    binary = cv2.adaptiveThreshold(filtered, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                   cv2.THRESH_BINARY, 11, 2)
+    
+    # Morphological operations to clean up
+    kernel = np.ones((3, 3), np.uint8)
+    morph = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+    morph = cv2.morphologyEx(morph, cv2.MORPH_OPEN, kernel)
+    
+    # Edge detection with optimized parameters
+    edges = cv2.Canny(morph, 50, 150)
+    
+    # Find contours
+    contours, hierarchy = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    # Intelligent filtering
+    filtered_contours = []
+    for c in contours:
+        area = cv2.contourArea(c)
+        perimeter = cv2.arcLength(c, True)
+        
+        # Filter by area and aspect ratio
+        if area > 100:
+            x, y, w, h = cv2.boundingRect(c)
+            aspect_ratio = float(w) / h if h > 0 else 0
+            
+            # Keep contours with reasonable aspect ratios (not too thin)
+            if 0.2 < aspect_ratio < 5.0:
+                filtered_contours.append(c)
+    
+    # Draw contours with different colors based on size
+    result = im.copy()
+    for c in filtered_contours:
+        area = cv2.contourArea(c)
+        # Color code by size: small=green, medium=blue, large=red
+        if area < 500:
+            color = (0, 255, 0)  # Green
+        elif area < 2000:
+            color = (255, 0, 0)  # Blue
+        else:
+            color = (0, 0, 255)  # Red
+        
+        cv2.drawContours(result, [c], -1, color, 2)
+    
+    return result
+
+def mask_brown(im):
+    # Convert to HSV for better color detection
+    hsv = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
+    
+    # Define range for light brown/tan colors
+    # Hue: 10-30 (orange-brown range)
+    # Saturation: 30-150 (not too grey, not too saturated)
+    # Value: 100-200 (light to medium brightness)
+    lower_brown = np.array([10, 30, 100])
+    upper_brown = np.array([30, 150, 200])
+    
+    # Create mask for brown pixels
+    mask = cv2.inRange(hsv, lower_brown, upper_brown)
+    
+    # Invert mask to keep everything EXCEPT brown
+    mask_inv = cv2.bitwise_not(mask)
+    
+    # Apply mask to original image
+    result = cv2.bitwise_and(im, im, mask=mask_inv)
+    
+    return result
 def colour_space(im):
     # Convert to HSV
     im_hsv = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
@@ -115,7 +193,11 @@ if __name__ == "__main__":
         
         clahed = clahethis(processed)
 
-        colour_space(clahed)
+        # colour_space(clahed)
+
+        browk_mask = mask_brown(processed)
+
+        img = contour_detect(clahed)
 
         if ret:
             cv2.imshow('Processed', processed)
@@ -126,6 +208,8 @@ if __name__ == "__main__":
         cv2.imshow('Undistorted', frame_undistorted)
         cv2.imshow('Distorted', frame)
         cv2.imshow('clahed', clahed)
+        cv2.imshow('browk_mask', browk_mask)
+        cv2.imshow('img', img)
         # cv2.imshow('hsv', hsv)
         # cv2.imshow('thresh', thresh)
         # if yolod is not None and yolod.size > 0:
