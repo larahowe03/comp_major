@@ -2,11 +2,11 @@ task: detect
 mode: train
 model: yolov8n.pt
 data: dataset_yolo/data.yaml
-epochs: 50
+epochs: 500
 time: null
 patience: 10
-batch: 8
-imgsz: 640
+batch: 16
+imgsz: 426
 save: true
 save_period: -1
 cache: false
@@ -70,7 +70,7 @@ simplify: true
 opset: null
 workspace: null
 nms: false
-lr0: 0.001
+lr0: 0.0001
 lrf: 0.01
 momentum: 0.937
 weight_decay: 0.0005
@@ -103,4 +103,5 @@ auto_augment: randaugment
 erasing: 0.4
 cfg: null
 tracker: botsort.yaml
-save_dir: C:\Users\tumal\OneDrive\Desktop\AMME5710\ASSIGNMENTS\Major\comp_major\runs_chess\chess_yolov8
+save_dir: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp
+  vision/major_project/runs_chess/chess_yolov8

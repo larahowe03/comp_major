@@ -1,19 +1,19 @@
 from ultralytics import YOLO
 import torch
-import cv2
+from pathlib import Path
 import os
-import numpy as np
-from warp_board import process_chess_image
 
-def test_yolo(test_image):
-
+def test_yolo_all_simple():
+    """Test YOLO on all test images - simple version"""
+    
     # ----------------------------
     # 1️⃣ Config
     # ----------------------------
-    model_path = "runs_chess/chess_yolov83/weights/best.pt"
+    model_path = "runs_chess/chess_yolov816/weights/best.pt"
+    test_images_dir = Path("dataset_yolo/images/test")  # Original images
+    # test_images_dir = Path("dataset_yolo/images_preprocessed/test")  # Or preprocessed
     save_dir = "runs_chess/test_results"
-    cell_pred_dir = os.path.join(save_dir, "cell_predictions")
-    os.makedirs(cell_pred_dir, exist_ok=True)
+    os.makedirs(save_dir, exist_ok=True)
 
     # ----------------------------
     # 2️⃣ Load YOLO
@@ -23,81 +23,69 @@ def test_yolo(test_image):
     print(f"🔍 Using device: {device}")
 
     # ----------------------------
-    # 3️⃣ Warp board & split into cells
+    # 3️⃣ Get all test images
     # ----------------------------
-    warp = process_chess_image(test_image)
-    h, w = warp.shape[:2]
-    rows, cols = 8, 8
-    cell_h, cell_w = h // rows, w // cols
-
-    predicted_board = []
+    image_extensions = ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG']
+    test_images = []
+    for ext in image_extensions:
+        test_images.extend(test_images_dir.glob(ext))
     
-    # Store all annotated cells for stitching
-    annotated_cells = [[None for _ in range(cols)] for _ in range(rows)]
+    test_images = sorted(test_images)
+    print(f"\n📸 Found {len(test_images)} test images\n")
 
     # ----------------------------
-    # 4️⃣ Loop through cells
+    # 4️⃣ Run predictions on all images
     # ----------------------------
-    for i in range(rows):
-        row_preds = []
-        for j in range(cols):
-            y1, y2 = i * cell_h, (i + 1) * cell_h
-            x1, x2 = j * cell_w, (j + 1) * cell_w
-
-            # Extract exact cell (no padding for stitching)
-            cell = warp[y1:y2, x1:x2].copy()
-
-            # Skip empty cells quickly
-            if cell.mean() < 25:
-                pred_class = "empty"
-                annotated_cells[i][j] = cell
-            else:
-                # Run YOLO prediction on the cropped cell
-                results = model.predict(
-                    source=cell,
-                    conf=0.1,
-                    imgsz=256,
-                    device=device,
-                    save=False,  # We'll handle saving ourselves
-                    verbose=False
-                )
-
-                preds = results[0]
-                if len(preds.boxes) == 0:
-                    pred_class = "empty"
-                    annotated_cells[i][j] = cell
-                else:
-                    cls_id = int(preds.boxes[0].cls)
-                    pred_class = preds.names[cls_id]
-                    
-                    # Get the annotated image from YOLO results
-                    annotated_cell = preds.plot()
-                    annotated_cells[i][j] = annotated_cell
-
-            row_preds.append(pred_class)
-            # print(f"Cell ({i+1},{j+1}) → {pred_class}")
-
-        predicted_board.append(row_preds)
+    results = model.predict(
+        source=str(test_images_dir),  # Just point to the folder
+        conf=0.1,                     # Confidence threshold
+        imgsz=448,                     # Image size (match training)
+        device=device,
+        save=True,                     # Save annotated images
+        project=save_dir,              # Save location
+        name="predictions",            # Subfolder name
+        exist_ok=True,                 # Overwrite if exists
+        save_txt=True,                 # Save labels as txt files
+        save_conf=True,                # Save confidence scores
+        verbose=True
+    )
 
     # ----------------------------
-    # 5️⃣ Stitch all cells together
+    # 5️⃣ Print summary for each image
     # ----------------------------
-    print("\n🧩 Stitching cells together...")
+    print(f"\n{'='*60}")
+    print("📊 PREDICTION SUMMARY")
+    print(f"{'='*60}\n")
     
-    # Stitch rows first
-    stitched_rows = []
-    for i in range(rows):
-        row_img = np.hstack(annotated_cells[i])
-        stitched_rows.append(row_img)
-    
-    # Stitch all rows together
-    stitched_img = np.vstack(stitched_rows)
-    
-    # Save the complete stitched image
-    stitched_path = os.path.join(save_dir, "stitched_board_predictions.jpg")
-    cv2.imwrite(stitched_path, stitched_img)
-    
-    print(f"✅ Saved stitched board image!")
-    print(f"📁 File: {stitched_path}")
+    for idx, result in enumerate(results):
+        img_path = result.path
+        img_name = Path(img_path).name
+        num_detections = len(result.boxes)
+        
+        print(f"{idx+1}. {img_name}")
+        print(f"   Detections: {num_detections}")
+        
+        if num_detections > 0:
+            for box in result.boxes:
+                cls_id = int(box.cls)
+                conf = float(box.conf)
+                class_name = result.names[cls_id]
+                print(f"   - {class_name}: {conf:.2f}")
+        else:
+            print(f"   - No detections")
+        print()
 
-    return stitched_img
+    # ----------------------------
+    # 6️⃣ Summary
+    # ----------------------------
+    print(f"{'='*60}")
+    print("✅ TESTING COMPLETE")
+    print(f"{'='*60}")
+    print(f"Total images processed: {len(test_images)}")
+    print(f"📁 Results saved to: {save_dir}/predictions/")
+    print(f"📁 Annotated images: {save_dir}/predictions/")
+    print(f"📁 Label files: {save_dir}/predictions/labels/")
+    
+
+if __name__ == "__main__":
+    test_yolo_all_simple()

@@ -5,9 +5,9 @@ from pathlib import Path
 
 model_name = "yolov8n.pt" 
 data_yaml = "dataset_yolo/data.yaml"
-epochs = 50                 
-img_size = 640
-batch_size = 8
+epochs = 500      
+img_size = 426
+batch_size = 16
 device = 0 if torch.cuda.is_available() else 'cpu'
 
 print(f"🚀 Training YOLOv8 on {device} using {data_yaml}") 
@@ -30,7 +30,7 @@ results = model.train(
     project="runs_chess",
     workers=2,
     optimizer='Adam',     # faster convergence for small datasets
-    lr0=0.001,            # learning rate
+    lr0=0.0001,            # learning rate
     patience=10,          # early stopping patience
     verbose=True
 )
