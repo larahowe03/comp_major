@@ -1,6 +1,35 @@
 import cv2
 import pickle
 from warp_board import process_chess_image
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import cm
+from matplotlib import colors
+
+def colour_space(im):
+    height = im.shape[0]
+    width = im.shape[1]
+    pixel_colours = im.reshape((height*width, 3))
+    norm = colors.Normalize(vmin=-1.0,vmax=1.0)
+    norm.autoscale(pixel_colours)
+    pixel_colours = norm(pixel_colours).tolist()
+    # Convert to HSV
+    im_hsv = cv2.cvtColor(im, cv2.COLOR_RGB2HSV)
+
+    # visualise the colours in a RGB colour space
+    H, S, V = cv2.split(im_hsv)
+    
+    fig = plt.figure()
+    axis = fig.add_subplot(1, 1, 1, projection="3d")
+    axis.scatter(H.flatten(), S.flatten(), V.flatten(), facecolors=pixel_colours, marker='.')
+    axis.set_xlabel("Hue")
+    axis.set_ylabel("Saturation")
+    axis.set_zlabel("Value")
+    # axis.view_init(30,70,0) # (elevation, azimuth, roll): try adjusting to view from different perspectives
+
+    plt.tight_layout()
+
+
+
 
 def undistort(img, K, d):
     return cv2.undistort(img, K, d, None, K)
