@@ -3,6 +3,10 @@ import pickle
 import os
 from datetime import datetime
 
+from stream_camera import undistort
+from warp_board import process_chess_image
+
+
 if __name__ == "__main__":
     # Replace with YOUR phone's IP and port from the DroidCam app
     phone_ip = "10.19.204.143"
@@ -37,7 +41,7 @@ if __name__ == "__main__":
     d = data['distortion_coeffs']
 
     # Create output directory if it doesn't exist
-    output_dir = "captured_frames"
+    output_dir = "captured_frames/black_pawn"
     os.makedirs(output_dir, exist_ok=True)
 
     print("\n=== Controls ===")
@@ -56,18 +60,23 @@ if __name__ == "__main__":
         # Undistort the frame (optional)
         h, w = frame.shape[:2]
         new_camera_matrix, roi = cv2.getOptimalNewCameraMatrix(K, d, (w, h), 1, (w, h))
-        undistorted = cv2.undistort(frame, K, d, None, new_camera_matrix)
+
+        undistorted = undistort(frame, K, d)
+
+        processed, blah = process_chess_image(undistorted)
 
         # Display the frame
-        cv2.imshow('DroidCam Feed - Press SPACE to capture, Q to quit', undistorted)
-
+        try:
+            cv2.imshow('DroidCam Feed - Press SPACE to capture, Q to quit', processed)
+        except:
+            cv2.imshow('DroidCam Feed - Press SPACE to capture, Q to quit', undistorted)
         key = cv2.waitKey(1) & 0xFF
 
         # Press SPACE to capture
         if key == ord(' '):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"{output_dir}/frame_{frame_count:04d}_{timestamp}.jpg"
-            cv2.imwrite(filename, undistorted)
+            cv2.imwrite(filename, processed)
             frame_count += 1
             print(f"Captured: {filename}")
 

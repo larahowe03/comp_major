@@ -89,8 +89,11 @@ def detect_board_hough(img, board_size=800, debug=False):
 
     return warp, horizontals, verticals, intersections, None
 
-# ------------------------
-# Main: hybrid detection
+# ------------------------import cv2
+import numpy as np
+
+
+# Main: hybrid detection with 20-pixel margin
 # ------------------------
 def detect_board(img, board_size=800):
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -254,9 +257,38 @@ def detect_board(img, board_size=800):
         print("All methods failed")
         return None, None
 
-    # Warp perspective
+    # Add 20-pixel margin by expanding source points outward
+    margin = 80 
+    
+    # Calculate center of the board
+    center_x = np.mean(pts_src[:, 0])
+    center_y = np.mean(pts_src[:, 1])
+    
+    # Expand each corner point away from center
+    expanded_pts_src = []
+    for pt in pts_src:
+        # Vector from center to corner
+        dx = pt[0] - center_x
+        dy = pt[1] - center_y
+        
+        # Calculate expansion factor based on margin
+        # We want to move the point outward by 'margin' pixels in the warped space
+        # Since board_size is the final size, margin/board_size gives us the ratio
+        expansion_ratio = 1 + (2 * margin / board_size)
+        
+        # Expand the point
+        new_x = center_x + dx * expansion_ratio
+        new_y = center_y + dy * expansion_ratio
+        
+        expanded_pts_src.append([new_x, new_y])
+    
+    expanded_pts_src = np.float32(expanded_pts_src)
+    
+    print(f"📏 Added {margin}px margin - expanded source points outward")
+
+    # Warp perspective with expanded source points to capture extra area
     pts_dst = np.float32([[0,0],[board_size,0],[board_size,board_size],[0,board_size]])
-    M = cv2.getPerspectiveTransform(pts_src, pts_dst)
+    M = cv2.getPerspectiveTransform(expanded_pts_src, pts_dst)
     warp = cv2.warpPerspective(img_rgb, M, (board_size, board_size))
 
     return warp, blah

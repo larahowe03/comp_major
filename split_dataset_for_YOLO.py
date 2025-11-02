@@ -10,8 +10,8 @@ from sklearn.linear_model import RANSACRegressor
 # -------------------------------
 # CONFIGURATION
 # -------------------------------
-source_dir = Path("big_chess_piece_dataset_png")
-output_dir = Path("dataset_yolo_big")
+source_dir = Path("captured_frames")
+output_dir = Path("dataset_yolo_warp")
 
 train_ratio = 0.7
 val_ratio = 0.2
@@ -170,19 +170,50 @@ def detect_edges_hybrid(im):
     
     return final
 
-
 def detect_edges_laplacian(im):
     """
     Use Laplacian edge detection for finding edges in all directions.
+    Masks out blue and dark brown/black regions first.
     """
+    # Convert to HSV for better color masking
+    hsv = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
+    
+    # Create masks for colors to remove
+    # Blue mask (wider range to catch various blues)
+    lower_blue = np.array([90, 50, 50])    # Hue ~90-130 is blue
+    upper_blue = np.array([130, 255, 255])
+    mask_blue = cv2.inRange(hsv, lower_blue, upper_blue)
+    
+    # Dark brown/black mask (low value/brightness)
+    lower_dark = np.array([0, 0, 0])
+    upper_dark = np.array([180, 255, 60])  # Very low brightness (V channel)
+    mask_dark = cv2.inRange(hsv, lower_dark, upper_dark)
+    
+    # Brown mask (orange-brown hues)
+    lower_brown = np.array([5, 30, 30])
+    upper_brown = np.array([25, 255, 150])
+    mask_brown = cv2.inRange(hsv, lower_brown, upper_brown)
+    
+    # Combine all masks (OR operation - mask out any of these colors)
+    combined_mask = cv2.bitwise_or(mask_blue, mask_dark)
+    combined_mask = cv2.bitwise_or(combined_mask, mask_brown)
+    
+    # Invert the mask (we want to keep non-masked areas)
+    # color_mask = cv2.bitwise_not(combined_mask)
+    
+    # Apply morphological operations to clean up the color mask
+    kernel_clean = np.ones((5, 5), np.uint8)
+    combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_CLOSE, kernel_clean, iterations=2)
+    combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN, kernel_clean, iterations=1)
+    
     # Convert to grayscale
     gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
     
-    # Apply Gaussian blur
-    blurred = cv2.GaussianBlur(gray, (5, 5), 1.0)
+    # Apply the color mask to the grayscale image
+    gray_masked = cv2.bitwise_and(gray, gray, mask=combined_mask)
     
-    # Apply Laplacian
-    laplacian = cv2.Laplacian(blurred, cv2.CV_64F, ksize=5)
+    # Apply Laplacian on masked image
+    laplacian = cv2.Laplacian(gray_masked, cv2.CV_64F, ksize=5)
     
     # Convert to absolute values and normalize
     laplacian = np.absolute(laplacian)
@@ -191,11 +222,31 @@ def detect_edges_laplacian(im):
     # Threshold
     _, binary = cv2.threshold(laplacian, 30, 255, cv2.THRESH_BINARY)
     
-    # Clean up with morphology
+    # Apply color mask again to ensure masked regions stay removed
+    binary = cv2.bitwise_and(binary, binary, mask=combined_mask)
+    
+    # # Remove straight lines using HoughLinesP
+    # lines = cv2.HoughLinesP(binary, 1, np.pi/180, threshold=80, minLineLength=30, maxLineGap=10)
+    
+    # # Create a mask to remove detected lines
+    # line_mask = np.ones_like(binary) * 255
+    
+    # if lines is not None:
+    #     for line in lines:
+    #         x1, y1, x2, y2 = line[0]
+    #         # Draw thick lines on the mask to remove them
+    #         cv2.line(line_mask, (x1, y1), (x2, y2), 0, thickness=1)
+    
+    # # Apply the line mask to remove lines
+    # binary = cv2.bitwise_and(binary, line_mask)
+
     kernel = np.ones((2, 2), np.uint8)
     binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=1)
+
     
+
     return binary
+
 
 
 def preprocess_image(img, method='canny'):
@@ -210,22 +261,22 @@ def preprocess_image(img, method='canny'):
     - 'laplacian': Laplacian edge detection (omnidirectional)
     """
     # Resize to 1/3 of original size
-    h, w = img.shape[:2]
-    img_resized = cv2.resize(img, (w // 3, h // 3), interpolation=cv2.INTER_AREA)
+    # h, w = img.shape[:2]
+    # img_resized = cv2.resize(img, (w // 3, h // 3), interpolation=cv2.INTER_AREA)
     
     # Select edge detection method
     if method == 'canny':
-        edges = detect_edges_canny(img_resized)
+        edges = detect_edges_canny(img)
     elif method == 'adaptive':
-        edges = detect_edges_adaptive(img_resized)
+        edges = detect_edges_adaptive(img)
     elif method == 'sobel':
-        edges = detect_edges_enhanced_sobel(img_resized)
+        edges = detect_edges_enhanced_sobel(img)
     elif method == 'hybrid':
-        edges = detect_edges_hybrid(img_resized)
+        edges = detect_edges_hybrid(img)
     elif method == 'laplacian':
-        edges = detect_edges_laplacian(img_resized)
+        edges = detect_edges_laplacian(img)
     elif method == 'shadow':
-        edges = detect_edges_shadow_free_ransac(img_resized)
+        edges = detect_edges_shadow_free_ransac(img)
     else:
         raise ValueError(f"Unknown method: {method}")
     
@@ -256,16 +307,16 @@ def detect_object_bbox(img_path):
     
     # Define color ranges
     # For muted yellow/cream pieces (#8C7C48 - yellowish brown)
-    lower_cream = np.array([15, 20, 50])   # Yellow-brown hue
-    upper_cream = np.array([35, 150, 200])
+    lower_blue = np.array([90, 50, 50])    # Hue ~90-130 is blue
+    upper_blue = np.array([130, 255, 255])
     
-    # For black pieces (dark colors)
-    lower_black = np.array([0, 0, 0])
-    upper_black = np.array([180, 255, 80])  # Very dark values
+    # Dark brown/black mask (low value/brightness)
+    lower_dark = np.array([0, 0, 0])
+    upper_dark = np.array([180, 255, 60])  # Very low brightness (V channel)
     
     # Create masks
-    mask_cream = cv2.inRange(hsv, lower_cream, upper_cream)
-    mask_black = cv2.inRange(hsv, lower_black, upper_black)
+    mask_cream = cv2.inRange(hsv, lower_blue, upper_blue)
+    mask_black = cv2.inRange(hsv, lower_dark, upper_dark)
     
     # Combine masks (either cream OR black pieces)
     mask_combined = cv2.bitwise_or(mask_cream, mask_black)
@@ -357,7 +408,7 @@ for name, idx in class_to_id.items():
 # -------------------------------
 # EDGE DETECTION METHOD SELECTION
 # -------------------------------
-EDGE_METHOD = 'shadow'  # Options: 'canny', 'adaptive', 'sobel', 'hybrid', 'laplacian'
+EDGE_METHOD = 'laplacian'  # Options: 'canny', 'adaptive', 'sobel', 'hybrid', 'laplacian'
 print(f"\n🎨 Using edge detection method: {EDGE_METHOD.upper()}")
 
 # -------------------------------

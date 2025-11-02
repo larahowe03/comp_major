@@ -14,7 +14,7 @@ from pathlib import Path
 import os
 
 def get_pieces(img):
-    model_path = "runs_chess/chess_yolov8/weights/best.pt"
+    model_path = "runs_chess/vissy_dataset/weights/best.pt"
 
     # Load YOLO
     device = 0 if torch.cuda.is_available() else 'cpu'
@@ -384,7 +384,7 @@ if __name__ == "__main__":
         wgite = mask_white(processed)
         nblhac = mask_black(processed)
 
-        img = contour_detect(processed)
+        # img = contour_detect(processed)
         masekd = mask_out(processed)
 
         black_detect = get_pieces(nblhac)
@@ -405,7 +405,7 @@ if __name__ == "__main__":
         cv2.imshow('wgite', wgite)
         cv2.imshow('nblhac', nblhac)
         cv2.imshow('dedsf', dedsf)
-        cv2.imshow('img', img)
+        # cv2.imshow('img', img)
         cv2.imshow('masekd', masekd)
         # cv2.imshow('hsv', hsv)
         # cv2.imshow('thresh', thresh)
