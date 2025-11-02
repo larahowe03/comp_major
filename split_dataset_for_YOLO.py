@@ -4,6 +4,8 @@ import random
 import cv2
 import numpy as np
 from pathlib import Path
+from sklearn.linear_model import RANSACRegressor
+
 
 # -------------------------------
 # CONFIGURATION
@@ -20,6 +22,52 @@ assert abs(train_ratio + val_ratio + test_ratio - 1.0) < 1e-6, "Ratios must sum 
 # -------------------------------
 # IMPROVED EDGE DETECTION METHODS
 # -------------------------------
+
+from sklearn.linear_model import RANSACRegressor
+
+def detect_edges_shadow_free_ransac(im):
+    """
+    Enhanced Sobel + RANSAC filtering for removing shadow edges and outlier lines.
+    """
+    # [Same preprocessing as before]
+    gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    enhanced = clahe.apply(gray)
+    filtered = cv2.bilateralFilter(enhanced, 9, 75, 75)
+    background = cv2.GaussianBlur(filtered, (51,51), 0)
+    illum_corrected = cv2.subtract(filtered, background)
+    illum_corrected = cv2.normalize(illum_corrected, None, 0, 255, cv2.NORM_MINMAX)
+
+    sobelx = cv2.Sobel(illum_corrected, cv2.CV_64F, 1, 0, ksize=5)
+    sobely = cv2.Sobel(illum_corrected, cv2.CV_64F, 0, 1, ksize=5)
+    sobel_mag = np.sqrt(sobelx**2 + sobely**2)
+    sobel_mag = cv2.normalize(sobel_mag, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+    _, binary = cv2.threshold(sobel_mag, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    # Morphological cleaning
+    kernel = np.ones((2,2), np.uint8)
+    binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+    binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
+
+    # ---- RANSAC FILTERING ----
+    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    kept = []
+    for c in contours:
+        pts = c.squeeze()
+        if len(pts.shape) < 2 or len(pts) < 20:
+            continue
+        x = pts[:,0].reshape(-1,1).astype(np.float32)
+        y = pts[:,1].astype(np.float32)
+        ransac = RANSACRegressor(residual_threshold=2.5, max_trials=100)
+        ransac.fit(x, y)
+        inlier_ratio = np.sum(ransac.inlier_mask_) / len(pts)
+        if inlier_ratio > 0.5:  # tune threshold depending on your structure
+            kept.append(c)
+    
+    filtered_edges = np.zeros_like(binary)
+    cv2.drawContours(filtered_edges, kept, -1, 255, thickness=cv2.FILLED)
+    return filtered_edges
+
 
 def detect_edges_canny(im):
     """
@@ -176,6 +224,8 @@ def preprocess_image(img, method='canny'):
         edges = detect_edges_hybrid(img_resized)
     elif method == 'laplacian':
         edges = detect_edges_laplacian(img_resized)
+    elif method == 'shadow':
+        edges = detect_edges_shadow_free_ransac(img_resized)
     else:
         raise ValueError(f"Unknown method: {method}")
     
@@ -307,7 +357,7 @@ for name, idx in class_to_id.items():
 # -------------------------------
 # EDGE DETECTION METHOD SELECTION
 # -------------------------------
-EDGE_METHOD = 'sobel'  # Options: 'canny', 'adaptive', 'sobel', 'hybrid', 'laplacian'
+EDGE_METHOD = 'shadow'  # Options: 'canny', 'adaptive', 'sobel', 'hybrid', 'laplacian'
 print(f"\n🎨 Using edge detection method: {EDGE_METHOD.upper()}")
 
 # -------------------------------
