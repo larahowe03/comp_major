@@ -8,8 +8,8 @@ from pathlib import Path
 # -------------------------------
 # CONFIGURATION
 # -------------------------------
-source_dir = Path("chess_piece_images_for_ResNet")
-output_dir = Path("dataset_yolo")
+source_dir = Path("big_chess_piece_dataset_png")
+output_dir = Path("dataset_yolo_big")
 
 train_ratio = 0.7
 val_ratio = 0.2
@@ -18,65 +18,172 @@ test_ratio = 0.1
 assert abs(train_ratio + val_ratio + test_ratio - 1.0) < 1e-6, "Ratios must sum to 1!"
 
 # -------------------------------
-# EDGE DETECTION PREPROCESSING
+# IMPROVED EDGE DETECTION METHODS
 # -------------------------------
-def detect_edges(im):
+
+def detect_edges_canny(im):
     """
-    Apply Sobel edge detection preprocessing to image with more detail.
+    Apply Canny edge detection - often gives cleaner, more accurate edges.
     """
     # Convert to grayscale
     gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
     
-    # Apply Sobel edge detection in X and Y directions
-    sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
-    sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
+    # Apply slight Gaussian blur to reduce noise
+    blurred = cv2.GaussianBlur(gray, (5, 5), 1.0)
+    
+    # Apply Canny edge detection with optimized thresholds
+    # Lower threshold = 30, upper threshold = 100
+    edges = cv2.Canny(blurred, 30, 100)
+    
+    # Optional: dilate slightly to make edges more visible
+    kernel = np.ones((2, 2), np.uint8)
+    edges = cv2.dilate(edges, kernel, iterations=1)
+    
+    return edges
+
+
+def detect_edges_adaptive(im):
+    """
+    Use adaptive thresholding combined with edge detection for better local contrast.
+    """
+    # Convert to grayscale
+    gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+    
+    # Apply bilateral filter to reduce noise while keeping edges sharp
+    filtered = cv2.bilateralFilter(gray, 9, 75, 75)
+    
+    # Adaptive thresholding
+    adaptive = cv2.adaptiveThreshold(
+        filtered, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+        cv2.THRESH_BINARY_INV, 11, 2
+    )
+    
+    # Apply morphological operations to clean up
+    kernel = np.ones((2, 2), np.uint8)
+    adaptive = cv2.morphologyEx(adaptive, cv2.MORPH_CLOSE, kernel, iterations=1)
+    
+    # Combine with Canny for better results
+    edges_canny = cv2.Canny(filtered, 30, 100)
+    
+    # Combine both methods
+    combined = cv2.bitwise_or(adaptive, edges_canny)
+    
+    return combined
+
+
+def detect_edges_enhanced_sobel(im):
+    """
+    Enhanced Sobel with better preprocessing and post-processing.
+    """
+    # Convert to grayscale
+    gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+    
+    # Apply CLAHE (Contrast Limited Adaptive Histogram Equalization) for better contrast
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    enhanced = clahe.apply(gray)
+    
+    # Apply bilateral filter to reduce noise while preserving edges
+    filtered = cv2.bilateralFilter(enhanced, 9, 75, 75)
+    
+    # Apply Sobel in both directions with larger kernel for better edge detection
+    sobelx = cv2.Sobel(filtered, cv2.CV_64F, 1, 0, ksize=5)
+    sobely = cv2.Sobel(filtered, cv2.CV_64F, 0, 1, ksize=5)
     
     # Compute gradient magnitude
     sobel_magnitude = np.sqrt(sobelx**2 + sobely**2)
     
-    # Normalize to 0-255 range
+    # Normalize to 0-255
     sobel_magnitude = cv2.normalize(sobel_magnitude, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
     
-    # Lower threshold to capture more details and subtle edges
-    _, binary = cv2.threshold(sobel_magnitude, 20, 255, cv2.THRESH_BINARY)
+    # Use Otsu's thresholding for automatic threshold selection
+    _, binary = cv2.threshold(sobel_magnitude, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     
-    # Skip or minimize morphological operations to preserve detail
-    # kernel = np.ones((2, 2), np.uint8)
-    # binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=1)
+    # Light morphological closing to connect nearby edges
+    kernel = np.ones((2, 2), np.uint8)
+    binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=1)
     
-    # Remove only very small connected components (keep more edges)
-    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(binary, connectivity=8)
-    
-    # Filter by area - keep more edges by lowering thresholds
-    min_area = 20    # Lower to keep more detail lines
-    max_area = 5000  # Keep upper limit
-    filtered = np.zeros_like(binary)
-    
-    for i in range(1, num_labels):  # Skip background (label 0)
-        area = stats[i, cv2.CC_STAT_AREA]
-        if min_area <= area <= max_area:
-            filtered[labels == i] = 255
-    
-    return filtered
+    return binary
 
-def preprocess_image(img):
+
+def detect_edges_hybrid(im):
     """
-    Apply full preprocessing pipeline: blur, resize, and edge detection.
+    Hybrid approach combining multiple methods for best results.
     """
-    # Apply lighter Gaussian blur to preserve more detail
-    img_blurred = cv2.GaussianBlur(img, (15, 15), 0)  # Reduced from (31, 31)
+    # Get edges from different methods
+    edges_canny = detect_edges_canny(im)
+    edges_sobel = detect_edges_enhanced_sobel(im)
     
-    # Resize to 1/4 of original size
-    h, w = img_blurred.shape[:2]
-    img_resized = cv2.resize(img_blurred, (w // 3, h // 3), interpolation=cv2.INTER_AREA)
+    # Combine using weighted average
+    # Give more weight to Canny as it's generally more accurate
+    combined = cv2.addWeighted(edges_canny, 0.6, edges_sobel, 0.4, 0)
     
-    # Detect edges on resized image
-    contoured = detect_edges(img_resized)
+    # Threshold the combined result
+    _, final = cv2.threshold(combined, 50, 255, cv2.THRESH_BINARY)
+    
+    return final
+
+
+def detect_edges_laplacian(im):
+    """
+    Use Laplacian edge detection for finding edges in all directions.
+    """
+    # Convert to grayscale
+    gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+    
+    # Apply Gaussian blur
+    blurred = cv2.GaussianBlur(gray, (5, 5), 1.0)
+    
+    # Apply Laplacian
+    laplacian = cv2.Laplacian(blurred, cv2.CV_64F, ksize=5)
+    
+    # Convert to absolute values and normalize
+    laplacian = np.absolute(laplacian)
+    laplacian = cv2.normalize(laplacian, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+    
+    # Threshold
+    _, binary = cv2.threshold(laplacian, 30, 255, cv2.THRESH_BINARY)
+    
+    # Clean up with morphology
+    kernel = np.ones((2, 2), np.uint8)
+    binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=1)
+    
+    return binary
+
+
+def preprocess_image(img, method='canny'):
+    """
+    Apply full preprocessing pipeline with selectable edge detection method.
+    
+    Methods available:
+    - 'canny': Canny edge detection (recommended for clean edges)
+    - 'adaptive': Adaptive thresholding + Canny (good for varying lighting)
+    - 'sobel': Enhanced Sobel (good for gradient-based detection)
+    - 'hybrid': Combination of Canny and Sobel (balanced)
+    - 'laplacian': Laplacian edge detection (omnidirectional)
+    """
+    # Resize to 1/3 of original size
+    h, w = img.shape[:2]
+    img_resized = cv2.resize(img, (w // 3, h // 3), interpolation=cv2.INTER_AREA)
+    
+    # Select edge detection method
+    if method == 'canny':
+        edges = detect_edges_canny(img_resized)
+    elif method == 'adaptive':
+        edges = detect_edges_adaptive(img_resized)
+    elif method == 'sobel':
+        edges = detect_edges_enhanced_sobel(img_resized)
+    elif method == 'hybrid':
+        edges = detect_edges_hybrid(img_resized)
+    elif method == 'laplacian':
+        edges = detect_edges_laplacian(img_resized)
+    else:
+        raise ValueError(f"Unknown method: {method}")
     
     # Convert back to BGR for consistency
-    contoured_bgr = cv2.cvtColor(contoured, cv2.COLOR_GRAY2BGR)
+    edges_bgr = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
     
-    return contoured_bgr
+    return edges_bgr
+
 
 # -------------------------------
 # OBJECT DETECTION FUNCTION
@@ -172,6 +279,7 @@ def detect_object_bbox(img_path):
     
     return (x_center, y_center, norm_width, norm_height), (x, y, box_w, box_h)
 
+
 # -------------------------------
 # MAKE CLEAN DIRECTORIES
 # -------------------------------
@@ -182,7 +290,7 @@ def make_clean_dir(path):
 
 for split in ["train", "val", "test"]:
     make_clean_dir(output_dir / "images" / split)
-    make_clean_dir(output_dir / "images_preprocessed" / split)  # New: preprocessed images
+    make_clean_dir(output_dir / "images_preprocessed" / split)
     make_clean_dir(output_dir / "labels" / split)
     make_clean_dir(output_dir / "visualizations" / split)
 
@@ -195,6 +303,12 @@ class_to_id = {name: i for i, name in enumerate(class_names)}
 print("🧩 Class mapping:")
 for name, idx in class_to_id.items():
     print(f"{idx}: {name}")
+
+# -------------------------------
+# EDGE DETECTION METHOD SELECTION
+# -------------------------------
+EDGE_METHOD = 'sobel'  # Options: 'canny', 'adaptive', 'sobel', 'hybrid', 'laplacian'
+print(f"\n🎨 Using edge detection method: {EDGE_METHOD.upper()}")
 
 # -------------------------------
 # SPLIT + GENERATE LABELS
@@ -249,7 +363,7 @@ for class_dir in source_dir.iterdir():
             shutil.copy(img_path, dest_img_dir / img_path.name)
 
             # Apply preprocessing and save
-            preprocessed_img = preprocess_image(img)
+            preprocessed_img = preprocess_image(img, method=EDGE_METHOD)
             cv2.imwrite(str(dest_prep_dir / img_path.name), preprocessed_img)
 
             # Create YOLO label file
@@ -275,7 +389,7 @@ for class_dir in source_dir.iterdir():
 
 print("\n🎯 YOLO dataset with auto-detected bounding boxes created at:")
 print(f"📁 {output_dir}/images/  (original images)")
-print(f"📁 {output_dir}/images_preprocessed/  (Sobel edge-detected images)")
+print(f"📁 {output_dir}/images_preprocessed/  (edge-detected images using {EDGE_METHOD.upper()})")
 print(f"📁 {output_dir}/labels/")
 print(f"📁 {output_dir}/visualizations/  (images with bboxes drawn)")
 
