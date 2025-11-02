@@ -3,7 +3,7 @@ import pickle
 import os
 from datetime import datetime
 
-from stream_camera import undistort
+from chess_detection import undistort
 from warp_board import process_chess_image
 
 

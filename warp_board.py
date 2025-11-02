@@ -153,7 +153,7 @@ def detect_board(img, board_size=800):
             elif 70 < angle < 110:
                 vertical_lines.append((x1, y1, x2, y2))
         
-        print(f"Found {len(horizontal_lines)} horizontal and {len(vertical_lines)} vertical lines")
+        # print(f"Found {len(horizontal_lines)} horizontal and {len(vertical_lines)} vertical lines")
         
         # Need at least 2 of each to find corners
         if len(horizontal_lines) >= 2 and len(vertical_lines) >= 2:
@@ -188,7 +188,6 @@ def detect_board(img, board_size=800):
             # Check if all intersections were found
             if None not in corners:
                 pts_src = np.float32(corners)
-                print("✅ Found corners from line intersections")
                 
                 # Visualize
                 contoured_img = img.copy()
@@ -244,23 +243,22 @@ def detect_board(img, board_size=800):
     
     expanded_pts_src = np.float32(expanded_pts_src)
     
-    print(f"📏 Added {margin}px margin - expanded source points outward")
-
     # Warp perspective with expanded source points to capture extra area
     pts_dst = np.float32([[0,0],[board_size,0],[board_size,board_size],[0,board_size]])
     M = cv2.getPerspectiveTransform(expanded_pts_src, pts_dst)
     warp = cv2.warpPerspective(img_rgb, M, (board_size, board_size))
 
-    return warp, contoured_img
+    return warp, contoured_img, pts_src
 
 
 def process_chess_image(img):
     try:
-        img, contoured_img = detect_board(img)
+        img, contoured_img, pts_src = detect_board(img)
     except:
         contoured_img = img
+        pts_src = None
         pass
 
-    return img, contoured_img
+    return img, contoured_img, pts_src
 
 

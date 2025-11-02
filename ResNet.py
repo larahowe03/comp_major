@@ -8,7 +8,7 @@ from sklearn.model_selection import train_test_split
 # ----------------------------
 # 1️⃣ Configuration
 # ----------------------------
-data_dir = 'chess_piece_images_for_ResNet'
+data_dir = 'big_chess_piece_dataset_png'
 test_size = 0.2
 batch_size = 16
 epochs_stage1 = 10   # frozen backbone

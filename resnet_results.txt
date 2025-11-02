@@ -1,0 +1,48 @@
+(computer_vision) ➜  major_project git:(tumali) ✗ python ResNet.py       
+Train size: 153 | Val size: 39 | Test size: 48
+Downloading: "https://download.pytorch.org/models/resnet18-f37072fd.pth" to /Users/lara.howe/.cache/torch/hub/checkpoints/resnet18-f37072fd.pth
+100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 44.7M/44.7M [00:04<00:00, 10.8MB/s]
+
+[Stage 1] Training FC layer only...
+
+[FT] Epoch 1 - Train Acc: 7.19%  Val Acc: 20.51%
+[FT] Epoch 2 - Train Acc: 18.30%  Val Acc: 33.33%
+[FT] Epoch 3 - Train Acc: 31.37%  Val Acc: 48.72%
+[FT] Epoch 4 - Train Acc: 39.87%  Val Acc: 56.41%
+[FT] Epoch 5 - Train Acc: 43.14%  Val Acc: 58.97%
+[FT] Epoch 6 - Train Acc: 43.14%  Val Acc: 66.67%
+[FT] Epoch 7 - Train Acc: 48.37%  Val Acc: 56.41%
+[FT] Epoch 8 - Train Acc: 60.13%  Val Acc: 48.72%
+[FT] Epoch 9 - Train Acc: 49.02%  Val Acc: 48.72%
+[FT] Epoch 10 - Train Acc: 52.94%  Val Acc: 64.10%
+[FT] Epoch 11 - Train Acc: 53.59%  Val Acc: 61.54%
+
+⏹️ Early stopping at epoch 11 — best Val Acc: 66.67%
+✅ Restored best model (Val Acc = 66.67%)
+
+[Stage 2] Fine-tuning full ResNet...
+
+[FT] Epoch 1 - Train Acc: 54.25%  Val Acc: 61.54%
+[FT] Epoch 2 - Train Acc: 78.43%  Val Acc: 74.36%
+[FT] Epoch 3 - Train Acc: 87.58%  Val Acc: 79.49%
+[FT] Epoch 4 - Train Acc: 88.89%  Val Acc: 82.05%
+[FT] Epoch 5 - Train Acc: 88.89%  Val Acc: 79.49%
+[FT] Epoch 6 - Train Acc: 95.42%  Val Acc: 82.05%
+[FT] Epoch 7 - Train Acc: 96.08%  Val Acc: 87.18%
+[FT] Epoch 8 - Train Acc: 98.69%  Val Acc: 82.05%
+[FT] Epoch 9 - Train Acc: 99.35%  Val Acc: 84.62%
+[FT] Epoch 10 - Train Acc: 98.69%  Val Acc: 82.05%
+[FT] Epoch 11 - Train Acc: 99.35%  Val Acc: 87.18%
+[FT] Epoch 12 - Train Acc: 100.00%  Val Acc: 89.74%
+[FT] Epoch 13 - Train Acc: 94.77%  Val Acc: 89.74%
+[FT] Epoch 14 - Train Acc: 98.69%  Val Acc: 87.18%
+[FT] Epoch 15 - Train Acc: 100.00%  Val Acc: 89.74%
+[FT] Epoch 16 - Train Acc: 99.35%  Val Acc: 79.49%
+[FT] Epoch 17 - Train Acc: 100.00%  Val Acc: 87.18%
+
+⏹️ Early stopping (fine-tuning) at epoch 18 — best Val Acc: 89.74%
+✅ Restored best fine-tuned model (Val Acc = 89.74%)
+
+🧾 Final Test Accuracy: 87.50% (Loss: 0.488)
+
+✅ Training complete and model saved as resnet_chess_finetuned.pkl
