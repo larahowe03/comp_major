@@ -57,17 +57,13 @@ if __name__ == "__main__":
             print("Failed to grab frame")
             break
 
-        # Undistort the frame (optional)
-        h, w = frame.shape[:2]
-        new_camera_matrix, roi = cv2.getOptimalNewCameraMatrix(K, d, (w, h), 1, (w, h))
-
         undistorted = undistort(frame, K, d)
 
-        processed, blah = process_chess_image(undistorted)
+        warped, contoured_img = process_chess_image(undistorted)
 
         # Display the frame
         try:
-            cv2.imshow('DroidCam Feed - Press SPACE to capture, Q to quit', processed)
+            cv2.imshow('DroidCam Feed - Press SPACE to capture, Q to quit', warped)
         except:
             cv2.imshow('DroidCam Feed - Press SPACE to capture, Q to quit', undistorted)
         key = cv2.waitKey(1) & 0xFF
@@ -76,7 +72,7 @@ if __name__ == "__main__":
         if key == ord(' '):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"{output_dir}/frame_{frame_count:04d}_{timestamp}.jpg"
-            cv2.imwrite(filename, processed)
+            cv2.imwrite(filename, warped)
             frame_count += 1
             print(f"Captured: {filename}")
 

@@ -191,66 +191,26 @@ def detect_board(img, board_size=800):
                 print("✅ Found corners from line intersections")
                 
                 # Visualize
-                blah = img.copy()
-                cv2.drawContours(blah, [largest_contour], -1, (128, 128, 128), 2)
+                contoured_img = img.copy()
+                cv2.drawContours(contoured_img, [largest_contour], -1, (128, 128, 128), 2)
                 
                 # Draw detected lines
-                cv2.line(blah, (top_line[0], top_line[1]), (top_line[2], top_line[3]), (0, 255, 0), 2)
-                cv2.line(blah, (bottom_line[0], bottom_line[1]), (bottom_line[2], bottom_line[3]), (0, 0, 255), 2)
-                cv2.line(blah, (left_line[0], left_line[1]), (left_line[2], left_line[3]), (255, 0, 0), 2)
-                cv2.line(blah, (right_line[0], right_line[1]), (right_line[2], right_line[3]), (255, 255, 0), 2)
+                cv2.line(contoured_img, (top_line[0], top_line[1]), (top_line[2], top_line[3]), (0, 255, 0), 2)
+                cv2.line(contoured_img, (bottom_line[0], bottom_line[1]), (bottom_line[2], bottom_line[3]), (0, 0, 255), 2)
+                cv2.line(contoured_img, (left_line[0], left_line[1]), (left_line[2], left_line[3]), (255, 0, 0), 2)
+                cv2.line(contoured_img, (right_line[0], right_line[1]), (right_line[2], right_line[3]), (255, 255, 0), 2)
                 
                 # Draw corners
                 for i, corner in enumerate(corners):
-                    cv2.circle(blah, corner, 10, (255, 0, 255), -1)
-                    cv2.putText(blah, str(i), (corner[0]-5, corner[1]+5),
+                    cv2.circle(contoured_img, corner, 10, (255, 0, 255), -1)
+                    cv2.putText(contoured_img, str(i), (corner[0]-5, corner[1]+5),
                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
             else:
                 print("Could not find all 4 corner intersections")
-
-    # # Fallback: use contour approximation if line method failed
-    # if pts_src is None:
-    #     print("Using contour approximation fallback...")
-    #     for c in contours:
-    #         peri = cv2.arcLength(c, True)
-    #         area = cv2.contourArea(c)
-            
-    #         if area < 1000:
-    #             continue
-            
-    #         circularity = 4 * np.pi * area / (peri * peri)
-            
-    #         if circularity > 0.9:
-    #             continue
-            
-    #         for eps in [0.01, 0.02, 0.03, 0.05]:
-    #             approx = cv2.approxPolyDP(c, eps * peri, True)
-                
-    #             if len(approx) == 4:
-    #                 pts = np.float32([pt[0] for pt in approx])
-                    
-    #                 angles = []
-    #                 for i in range(4):
-    #                     p1 = pts[i]
-    #                     p2 = pts[(i + 1) % 4]
-    #                     p3 = pts[(i + 2) % 4]
-                        
-    #                     v1 = p1 - p2
-    #                     v2 = p3 - p2
-                        
-    #                     angle = np.abs(np.degrees(np.arctan2(np.linalg.det([v1, v2]), np.dot(v1, v2))))
-    #                     angles.append(angle)
-                    
-    #                 if all(70 < angle < 110 for angle in angles):
-    #                     pts_src = order_corners(pts)
-    #                     break
-            
-    #         if pts_src is not None:
-    #             break
         
         if pts_src is not None:
-            blah = img.copy()
-            cv2.drawContours(blah, contours, 0, (0, 255, 0), 2)
+            contoured_img = img.copy()
+            cv2.drawContours(contoured_img, contours, 0, (0, 255, 0), 2)
 
     # Final fallback
     if pts_src is None:
@@ -291,19 +251,16 @@ def detect_board(img, board_size=800):
     M = cv2.getPerspectiveTransform(expanded_pts_src, pts_dst)
     warp = cv2.warpPerspective(img_rgb, M, (board_size, board_size))
 
-    return warp, blah
+    return warp, contoured_img
 
 
 def process_chess_image(img):
     try:
-        img, blah = detect_board(img)
+        img, contoured_img = detect_board(img)
     except:
-        blah = img
+        contoured_img = img
         pass
-        # try:
-        #     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        # except:
-        #     pass
-    return img, blah
+
+    return img, contoured_img
 
 

@@ -268,9 +268,9 @@ for class_dir in class_dirs:
 # Preprocessed images
 yaml_path_prep = output_dir / "data.yaml"
 with open(yaml_path_prep, "w") as f:
-    f.write(f"train: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/images/train\n")
-    f.write(f"val: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/images/val\n")
-    f.write(f"test: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/images/test\n\n")
+    f.write(f"train: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/dataset_yolo_warp_contour/images/train\n")
+    f.write(f"val: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/dataset_yolo_warp_contour/images/val\n")
+    f.write(f"test: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/dataset_yolo_warp_contour/images/test\n\n")
     f.write(f"nc: {len(class_names)}\n")
     f.write("names: [\n")
     for i, name in enumerate(class_names):

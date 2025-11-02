@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 
 model_name = "yolov8n.pt" 
-data_yaml = "dataset_yolo_warp_colour/data.yaml"
+data_yaml = "dataset_yolo_warp_contour/data.yaml"
 epochs = 500
 img_size = 426
 batch_size = 16
@@ -26,7 +26,7 @@ results = model.train(
     imgsz=img_size,
     batch=batch_size,
     device=device,
-    name="model_warp_colour",
+    name="model_warp_contour",
     project="runs_chess",
     workers=2,
     optimizer='Adam',     # faster convergence for small datasets
