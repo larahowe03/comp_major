@@ -7,13 +7,6 @@ from PIL import Image
 import numpy as np
 
 def resynet_test(img):
-    # img = cv2.imread("img.png")
-    # path = "img.png"
-
-    # warp = process_chess_image(path)
-
-    # plt.imshow(warp)
-    # plt.show()
 
     # 1. Load the trained model
     classes = ['black_bishop', 'black_king', 'black_knight', 'black_pawn', 'black_queen', 'black_rook', 'empty',

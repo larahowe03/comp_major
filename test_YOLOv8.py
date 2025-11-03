@@ -2,90 +2,79 @@ from ultralytics import YOLO
 import torch
 from pathlib import Path
 import os
+import pandas as pd
 
-def test_yolo_all_simple():
-    """Test YOLO on all test images - simple version"""
+def evaluate_yolo_all_splits():
+    """Evaluate YOLO model on train, val, and test sets"""
     
     # ----------------------------
     # 1️⃣ Config
     # ----------------------------
-    model_path = "runs_chess/chess_yolov816/weights/best.pt"
-    test_images_dir = Path("dataset_yolo/images/test")  # Original images
-    # test_images_dir = Path("dataset_yolo/images_preprocessed/test")  # Or preprocessed
-    save_dir = "runs_chess/test_results"
-    os.makedirs(save_dir, exist_ok=True)
-
-    # ----------------------------
-    # 2️⃣ Load YOLO
-    # ----------------------------
+    model_path = "runs_chess/model_warp_contour/weights/best.pt"
+    data_yaml = "dataset_yolo_warp_contour/data.yaml"  # Path to your data.yaml
+    
     device = 0 if torch.cuda.is_available() else 'cpu'
     model = YOLO(model_path)
-    print(f"🔍 Using device: {device}")
-
-    # ----------------------------
-    # 3️⃣ Get all test images
-    # ----------------------------
-    image_extensions = ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG']
-    test_images = []
-    for ext in image_extensions:
-        test_images.extend(test_images_dir.glob(ext))
     
-    test_images = sorted(test_images)
-    print(f"\n📸 Found {len(test_images)} test images\n")
-
-    # ----------------------------
-    # 4️⃣ Run predictions on all images
-    # ----------------------------
-    results = model.predict(
-        source=str(test_images_dir),  # Just point to the folder
-        conf=0.1,                     # Confidence threshold
-        imgsz=448,                     # Image size (match training)
-        device=device,
-        save=True,                     # Save annotated images
-        project=save_dir,              # Save location
-        name="predictions",            # Subfolder name
-        exist_ok=True,                 # Overwrite if exists
-        save_txt=True,                 # Save labels as txt files
-        save_conf=True,                # Save confidence scores
-        verbose=True
-    )
-
-    # ----------------------------
-    # 5️⃣ Print summary for each image
-    # ----------------------------
-    print(f"\n{'='*60}")
-    print("📊 PREDICTION SUMMARY")
-    print(f"{'='*60}\n")
+    print(f"🔍 Using device: {device}\n")
     
-    for idx, result in enumerate(results):
-        img_path = result.path
-        img_name = Path(img_path).name
-        num_detections = len(result.boxes)
+    # ----------------------------
+    # 2️⃣ Evaluate on each split
+    # ----------------------------
+    splits = ['train', 'val', 'test']
+    results_dict = {}
+    
+    for split in splits:
+        print(f"{'='*60}")
+        print(f"📊 Evaluating on {split.upper()} set")
+        print(f"{'='*60}\n")
         
-        print(f"{idx+1}. {img_name}")
-        print(f"   Detections: {num_detections}")
+        # Run validation (works for any split)
+        metrics = model.val(
+            data=data_yaml,
+            split=split,  # 'train', 'val', or 'test'
+            imgsz=448,
+            conf=0.1,
+            device=device,
+            verbose=True
+        )
         
-        if num_detections > 0:
-            for box in result.boxes:
-                cls_id = int(box.cls)
-                conf = float(box.conf)
-                class_name = result.names[cls_id]
-                print(f"   - {class_name}: {conf:.2f}")
-        else:
-            print(f"   - No detections")
+        # Extract metrics
+        results_dict[split] = {
+            'mAP50': float(metrics.box.map50),
+            'mAP50-95': float(metrics.box.map),
+            'precision': float(metrics.box.mp),
+            'recall': float(metrics.box.mr),
+        }
+        
+        print(f"\n{split.upper()} Results:")
+        print(f"  mAP50:    {results_dict[split]['mAP50']:.4f}")
+        print(f"  mAP50-95: {results_dict[split]['mAP50-95']:.4f}")
+        print(f"  Precision: {results_dict[split]['precision']:.4f}")
+        print(f"  Recall:    {results_dict[split]['recall']:.4f}")
         print()
-
-    # ----------------------------
-    # 6️⃣ Summary
-    # ----------------------------
-    print(f"{'='*60}")
-    print("✅ TESTING COMPLETE")
-    print(f"{'='*60}")
-    print(f"Total images processed: {len(test_images)}")
-    print(f"📁 Results saved to: {save_dir}/predictions/")
-    print(f"📁 Annotated images: {save_dir}/predictions/")
-    print(f"📁 Label files: {save_dir}/predictions/labels/")
     
+    # ----------------------------
+    # 3️⃣ Create summary DataFrame
+    # ----------------------------
+    df = pd.DataFrame(results_dict).T
+    df.index.name = 'split'
+    
+    print(f"{'='*60}")
+    print("📈 SUMMARY - All Splits")
+    print(f"{'='*60}\n")
+    print(df.to_string())
+    print()
+    
+    # ----------------------------
+    # 4️⃣ Save to CSV
+    # ----------------------------
+    output_file = "model_metrics_all_splits.csv"
+    df.to_csv(output_file)
+    print(f"✅ Metrics saved to: {output_file}\n")
+    
+    return df
+
 
 if __name__ == "__main__":
-    test_yolo_all_simple()
+    metrics_df = evaluate_yolo_all_splits()

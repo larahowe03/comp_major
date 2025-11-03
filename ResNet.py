@@ -2,17 +2,13 @@ import torch
 from torch import nn, optim
 from torchvision import datasets, transforms, models
 from torch.utils.data import DataLoader, Subset
-from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.model_selection import train_test_split
 
 # ----------------------------
 # 1️⃣ Configuration
 # ----------------------------
 data_dir = 'big_chess_piece_dataset_png'
-test_size = 0.2
 batch_size = 16
-epochs_stage1 = 10   # frozen backbone
-epochs_stage2 = 5    # fine-tuning
 lr = 0.001
 seed = 42
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -40,23 +36,23 @@ val_transform = transforms.Compose([
 ])
 
 # ----------------------------
-# 3️⃣ Dataset + Stratified Split
+# 3️⃣ Dataset + Stratified Split (70/20/10)
 # ----------------------------
 full_dataset = datasets.ImageFolder(data_dir, transform=train_transform)
 targets = [label for _, label in full_dataset.samples]
 
-
-# Step 1: Split train+val vs test
+# Step 1: Split off test set (10%)
 trainval_idx, test_idx = train_test_split(
-    range(len(targets)), test_size=0.2, stratify=targets, random_state=seed
+    range(len(targets)), test_size=0.1, stratify=targets, random_state=seed
 )
 
-# Step 2: Split remaining into train and validation
+# Step 2: Split remaining 90% into train (70% of total) and val (20% of total)
+# 20/90 ≈ 0.222 to get 20% of original
 train_idx, val_idx = train_test_split(
-    trainval_idx, test_size=0.2, stratify=[targets[i] for i in trainval_idx], random_state=seed
+    trainval_idx, test_size=0.222, stratify=[targets[i] for i in trainval_idx], random_state=seed
 )
 
-# Now build subsets
+# Build subsets
 train_dataset = Subset(full_dataset, train_idx)
 val_dataset   = Subset(datasets.ImageFolder(data_dir, transform=val_transform), val_idx)
 test_dataset  = Subset(datasets.ImageFolder(data_dir, transform=val_transform), test_idx)
@@ -65,7 +61,9 @@ train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader   = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 test_loader  = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-print(f"Train size: {len(train_dataset)} | Val size: {len(val_dataset)} | Test size: {len(test_dataset)}")
+print(f"Dataset split: Train={len(train_dataset)} ({len(train_dataset)/len(targets)*100:.1f}%) | "
+      f"Val={len(val_dataset)} ({len(val_dataset)/len(targets)*100:.1f}%) | "
+      f"Test={len(test_dataset)} ({len(test_dataset)/len(targets)*100:.1f}%)")
 
 
 # ----------------------------
@@ -73,7 +71,7 @@ print(f"Train size: {len(train_dataset)} | Val size: {len(val_dataset)} | Test s
 # ----------------------------
 model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
 
-# freeze backbone for first stage
+# Freeze backbone for first stage
 for param in model.parameters():
     param.requires_grad = False
 
@@ -88,17 +86,19 @@ scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.5)
 
 class EarlyStopper:
     def __init__(self, patience=5, min_delta=0):
-        self.patience = patience          # number of epochs to wait
-        self.min_delta = min_delta        # minimum improvement
+        self.patience = patience
+        self.min_delta = min_delta
         self.counter = 0
         self.best_score = None
         self.early_stop = False
         self.best_state_dict = None
+        self.best_epoch = 0
 
-    def __call__(self, val_acc, model):
+    def __call__(self, val_acc, model, epoch):
         if self.best_score is None:
             self.best_score = val_acc
             self.best_state_dict = model.state_dict()
+            self.best_epoch = epoch
         elif val_acc < self.best_score + self.min_delta:
             self.counter += 1
             if self.counter >= self.patience:
@@ -106,10 +106,11 @@ class EarlyStopper:
         else:
             self.best_score = val_acc
             self.best_state_dict = model.state_dict()
+            self.best_epoch = epoch
             self.counter = 0
 
 # ----------------------------
-# 5️⃣ Training function
+# 5️⃣ Evaluation function
 # ----------------------------
 def evaluate(model, loader):
     model.eval()
@@ -128,11 +129,15 @@ def evaluate(model, loader):
 # ----------------------------
 # 6️⃣ Stage 1: Train FC layer only
 # ----------------------------
-print("\n[Stage 1] Training FC layer only...\n")
+print("\n" + "="*70)
+print("[Stage 1] Training FC layer only (backbone frozen)")
+print("="*70)
+print(f"{'Epoch':<8} {'Train Loss':<12} {'Train Acc':<12} {'Val Loss':<12} {'Val Acc':<12}")
+print("-" * 70)
+
 early_stopper = EarlyStopper(patience=5, min_delta=0.1)
 
 epoch = 0
-# for epoch in range(epochs_stage1):
 while not early_stopper.early_stop:
     epoch += 1
     model.train()
@@ -151,27 +156,33 @@ while not early_stopper.early_stop:
         correct += predicted.eq(labels).sum().item()
 
     scheduler.step()
+    train_loss = running_loss / len(train_loader)
     train_acc = 100. * correct / total
     val_loss, val_acc = evaluate(model, val_loader)
 
-    print(f"[FT] Epoch {epoch} - Train Acc: {train_acc:.2f}%  Val Acc: {val_acc:.2f}%")
+    print(f"{epoch:<8} {train_loss:<12.4f} {train_acc:<12.2f}% {val_loss:<12.4f} {val_acc:<12.2f}%")
 
-    # check early stopping condition
-    early_stopper(val_acc, model)
+    early_stopper(val_acc, model, epoch)
 
-print(f"\n⏹️ Early stopping at epoch {epoch} — best Val Acc: {early_stopper.best_score:.2f}%")
+print("-" * 70)
+print(f"Early stopping triggered at epoch {epoch}")
+print(f"Best model: Epoch {early_stopper.best_epoch} with Val Acc = {early_stopper.best_score:.2f}%")
     
 if early_stopper.best_state_dict is not None:
     model.load_state_dict(early_stopper.best_state_dict)
-    print(f"✅ Restored best model (Val Acc = {early_stopper.best_score:.2f}%)")
+    print(f"Restored best model from epoch {early_stopper.best_epoch}")
 
 # ----------------------------
 # 7️⃣ Stage 2: Fine-tune full network
 # ----------------------------
+print("\n" + "="*70)
+print("[Stage 2] Fine-tuning full ResNet (all layers unfrozen)")
+print("="*70)
+print(f"{'Epoch':<8} {'Train Loss':<12} {'Train Acc':<12} {'Val Loss':<12} {'Val Acc':<12}")
+print("-" * 70)
 
 early_stopper_ft = EarlyStopper(patience=5, min_delta=0.1)
 
-print("\n[Stage 2] Fine-tuning full ResNet...\n")
 for param in model.parameters():
     param.requires_grad = True
 
@@ -179,7 +190,6 @@ optimizer = optim.Adam(model.parameters(), lr=lr * 0.1)
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.5)
 
 epoch = 0
-# for epoch in range(epochs_stage2):
 while not early_stopper_ft.early_stop:
     epoch += 1
     model.train()
@@ -196,27 +206,42 @@ while not early_stopper_ft.early_stop:
         _, predicted = outputs.max(1)
         total += labels.size(0)
         correct += predicted.eq(labels).sum().item()
+    
     scheduler.step()
-
+    train_loss = running_loss / len(train_loader)
     train_acc = 100. * correct / total
     val_loss, val_acc = evaluate(model, val_loader)
-    print(f"[FT] Epoch {epoch} - Train Acc: {train_acc:.2f}%  Val Acc: {val_acc:.2f}%")
     
-    early_stopper_ft(val_acc, model)
+    print(f"{epoch:<8} {train_loss:<12.4f} {train_acc:<12.2f}% {val_loss:<12.4f} {val_acc:<12.2f}%")
+    
+    early_stopper_ft(val_acc, model, epoch)
 
-print(f"\n⏹️ Early stopping (fine-tuning) at epoch {epoch+1} — best Val Acc: {early_stopper_ft.best_score:.2f}%")
+print("-" * 70)
+print(f"Early stopping triggered at epoch {epoch}")
+print(f"Best model: Epoch {early_stopper_ft.best_epoch} with Val Acc = {early_stopper_ft.best_score:.2f}%")
 
-# restore best fine-tuned model
+# Restore best fine-tuned model
 if early_stopper_ft.best_state_dict is not None:
     model.load_state_dict(early_stopper_ft.best_state_dict)
-    print(f"✅ Restored best fine-tuned model (Val Acc = {early_stopper_ft.best_score:.2f}%)")
+    print(f"Restored best fine-tuned model from epoch {early_stopper_ft.best_epoch}")
+
+# ----------------------------
+# 8️⃣ Final Test Evaluation
+# ----------------------------
+print("\n" + "="*70)
+print("Final Evaluation on Test Set")
+print("="*70)
 
 test_loss, test_acc = evaluate(model, test_loader)
-print(f"\n🧾 Final Test Accuracy: {test_acc:.2f}% (Loss: {test_loss:.3f})")
-
+print(f"Test Loss: {test_loss:.4f}")
+print(f"Test Accuracy: {test_acc:.2f}%")
 
 # ----------------------------
-# 8️⃣ Save model
+# 9️⃣ Save ONLY the best model
 # ----------------------------
-torch.save(model.state_dict(), 'resnet_chess_finetuned.pkl')
-print("\n✅ Training complete and model saved as resnet_chess_finetuned.pkl")
+model_path = 'resnet_chess_best.pth'
+torch.save(model.state_dict(), model_path)
+print(f"\n✅ Best model saved as '{model_path}'")
+print(f"   Best epoch from Stage 2: {early_stopper_ft.best_epoch}")
+print(f"   Best validation accuracy: {early_stopper_ft.best_score:.2f}%")
+print(f"   Final test accuracy: {test_acc:.2f}%")
