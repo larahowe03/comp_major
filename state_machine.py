@@ -78,7 +78,7 @@ while running:
         # bottom_row, second_bottom_row = crop_rows(warped)
         
         # Detect pieces
-        detection_result = chess_detection.detect_pieces(warped)
+        detection_result, boxes = chess_detection.detect_pieces(warped)
         # bottom_row_detection_result = chess_detection.detect_pieces(bottom_row)
         # second_bottom_row_detection_result = chess_detection.detect_pieces(second_bottom_row)
 

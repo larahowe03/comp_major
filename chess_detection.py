@@ -315,8 +315,18 @@ def ensemble_predictions(contour_result, colour_result, iou_threshold=0.5, conf_
     
     ensemble_result = copy.deepcopy(colour_result)
     ensemble_result.boxes = new_boxes
-    
-    return ensemble_result
+
+    boxes_info = []
+    for box in ensemble_result.boxes:
+        x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+        boxes_info.append({
+            'box': [float(x1), float(y1), float(x2), float(y2)],
+            'bottom': float(y2),
+            'confidence': float(box.conf[0].cpu().numpy()),
+            'class_id': int(box.cls[0].cpu().numpy()),
+            'class_name': ensemble_result.names[int(box.cls[0].cpu().numpy())]
+        })
+    return ensemble_result, boxes_info
 
 
 def ensemble_model(contoured_warp, coloured_warp):
@@ -324,14 +334,14 @@ def ensemble_model(contoured_warp, coloured_warp):
     contour_predictions = contour_model_prediction(contoured_warp)
     colour_predictions = colour_model_prediction(coloured_warp)
     
-    ensemble_result = ensemble_predictions(
+    ensemble_result, boxes_info = ensemble_predictions(
         contour_predictions, 
         colour_predictions,
         iou_threshold=0.5,
         conf_weight_contour=0.5
     )
     
-    return ensemble_result
+    return ensemble_result, boxes_info
 
 
 def undistort(img, K, d):
@@ -339,7 +349,7 @@ def undistort(img, K, d):
 
 
 # Initialize camera and calibration
-def initialize_camera(phone_ip="10.19.204.143", port="4747"):
+def initialize_camera(phone_ip="192.168.0.105", port="4747"):
     """Initialize camera connection."""
     urls = [
         f"http://{phone_ip}:{port}/video",
@@ -421,12 +431,27 @@ def detect_pieces(warped):
     coloured_warp = warped
     
     # Get ensemble predictions
-    ensemble_result = ensemble_model(contoured_warp, coloured_warp)
+    ensemble_result, boxes_info = ensemble_model(contoured_warp, coloured_warp)
     
     # Apply stabilization
     stabilized_result = stabilizer.update(ensemble_result)
     
-    return stabilized_result
+    # Extract boxes from stabilized result
+    stabilized_boxes = []
+    for box in stabilized_result.boxes:
+        x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+        confidence = box.conf[0].cpu().numpy()
+        class_id = int(box.cls[0].cpu().numpy())
+        
+        stabilized_boxes.append({
+            'box': [float(x1), float(y1), float(x2), float(y2)],
+            'bottom': float(y2),
+            'confidence': float(confidence),
+            'class_id': class_id,
+            'class_name': stabilized_result.names[class_id]
+        })
+    
+    return stabilized_result, stabilized_boxes
 
 
 def cleanup_camera():
