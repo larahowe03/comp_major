@@ -375,7 +375,12 @@ def ensemble_model(contoured_warp, coloured_warp):
     contour_predictions = contour_model_prediction(contoured_warp)
     colour_predictions = colour_model_prediction(coloured_warp)
     
-    debug_ensemble_analysis(contour_predictions, colour_predictions, iou_threshold=0.5)
+    annotated = contour_predictions.plot()
+    cv2.imshow('Contour Frame', annotated)
+            
+    annotated = colour_predictions.plot()
+    cv2.imshow('Colour Frame', annotated)
+    # debug_ensemble_analysis(contour_predictions, colour_predictions, iou_threshold=0.5)
     
     ensemble_result = ensemble_predictions(
         contour_predictions, 
@@ -392,7 +397,7 @@ def undistort(img, K, d):
 
 
 # Initialize camera and calibration
-def initialize_camera(phone_ip="192.168.0.105", port="4747"):
+def initialize_camera(phone_ip="10.16.243.119", port="4747"):
     """Initialize camera connection."""
     urls = [
         f"http://{phone_ip}:{port}/video",
@@ -472,7 +477,7 @@ def detect_pieces(warped):
     # Prepare images
     contoured_warp = preprocess_image(warped)
     coloured_warp = warped
-        
+
     # Get ensemble predictions
     ensemble_result= ensemble_model(contoured_warp, coloured_warp)
     
@@ -493,7 +498,6 @@ def detect_pieces(warped):
             'class_id': class_id,
             'class_name': stabilized_result.names[class_id]
         })
-    
     return stabilized_result
 
 

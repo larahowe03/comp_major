@@ -80,13 +80,16 @@ class Button:
 
 def draw_grid():
     """Draw a black and white checkerboard grid"""
+    GRAY = (160, 160, 160)  # medium gray
+    WHITE = (245, 245, 245) # soft white
+    
     for row in range(ROWS):
         for col in range(COLS):
             # Alternate colors based on row and column
             if (row + col) % 2 == 0:
-                color = WHITE
+                color = GRAY
             else:
-                color = BLACK
+                color = WHITE
             
             # Calculate position
             x = col * CELL_WIDTH
