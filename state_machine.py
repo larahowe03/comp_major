@@ -16,14 +16,78 @@ UPDATE_BOARD = 6
 current_state = IDLE
 prev_state = IDLE
 
-def crop_rows(warp_img, margin = 80):
-    h, w = warp_img.shape[:2]
-    unmargined_img = warp_img[0:h-margin, :]
+def get_chess_notation(row, col, flip_board=False):
+    """Convert row/col to chess notation (e.g., 'e4')."""
+    if flip_board:
+        row = 7 - row
+        col = 7 - col
+    
+    files = 'abcdefgh'
+    ranks = '87654321'  # Assuming row 0 is rank 8
+    
+    return files[col] + ranks[row]
 
-    bottom_row = unmargined_img[h-190:, :]
+def get_cell_location(unmargined_warp, boxes, margin=60, top_margin_extra=20, min_confidence=0.5):
+      
+    # Get unmargined board dimensions
+    unmargined_height, unmargined_width = unmargined_warp.shape[:2]
+    
+    # Calculate cell size
+    square_width = unmargined_width / 8
+    square_height = unmargined_height / 8
+    
+    # Map each piece to board position
+    pieces_with_positions = []
+    for box_info in boxes:
+        
+        # FILTER LOW CONFIDENCE
+        if box_info['confidence'] < min_confidence:
+            continue
+        
+        x1, y1, x2, y2 = box_info['box']
+        bottom_x = (x1 + x2) / 2
+        bottom_y = y2
+        
+        # Adjust coordinates from margined space to unmargined space
+        # Subtract left margin from x
+        # Subtract top margin (margin + top_margin_extra) from y
+        adjusted_x = bottom_x - margin
+        adjusted_y = bottom_y - (margin + top_margin_extra)
+        
+        # Check if outside unmargined area
+        if adjusted_x < 0 or adjusted_y < 0 or \
+           adjusted_x > unmargined_width or adjusted_y > unmargined_height:
+            continue  # Skip pieces outside the playable area
+        
+        # Calculate cell position in unmargined space
+        col = int(adjusted_x / square_width)
+        row = int(adjusted_y / square_height)
+        
+        # Clamp to valid range
+        col = max(0, min(7, col))
+        row = max(0, min(7, row))
+        
+        chess_pos = get_chess_notation(row, col)
+        
+        pieces_with_positions.append({
+            **box_info,
+            'row': row,
+            'col': col,
+            'position': chess_pos,
+            'bottom_center': (bottom_x, bottom_y),  # Original margined coordinates
+            'adjusted_bottom_center': (adjusted_x, adjusted_y)  # Unmargined coordinates
+        })
+    
+    return pieces_with_positions
+
+def crop_rows(warp_img, margin = 60):
+    h, w = warp_img.shape[:2]
+    unmargined_img = warp_img[margin+20:h-margin, margin:w-margin]
+
+    bottom_row = unmargined_img[h-180:, :]
     second_bottom_row = unmargined_img[h-280:h-140, :]
-    return bottom_row, second_bottom_row
-    # return unmargined_img
+    # return bottom_row, second_bottom_row
+    return unmargined_img
 
 
 board_state = [
@@ -51,6 +115,9 @@ warped_board = None
 
 pts_src_buffer = []
 
+MARGIN = 60
+TOP_MARGIN_EXTRA = 20
+
 while running:
     # Always update GUI
     running = gui.do_gui(board_state)
@@ -76,22 +143,49 @@ while running:
         warped_board = warped
         cv2.imshow('Warped Board', warped)
         # bottom_row, second_bottom_row = crop_rows(warped)
+        # unmargined = crop_rows(warped)
+        
+        h, w = warped.shape[:2]
+        unmargined = warped[MARGIN+TOP_MARGIN_EXTRA:h-MARGIN, MARGIN:w-MARGIN]
         
         # Detect pieces
-        detection_result, boxes = chess_detection.detect_pieces(warped)
-        # bottom_row_detection_result = chess_detection.detect_pieces(bottom_row)
+        detection_result = chess_detection.detect_pieces(warped)
+        
+        # unmargined_result = chess_detection.detect_pieces(unmargined)
         # second_bottom_row_detection_result = chess_detection.detect_pieces(second_bottom_row)
+        
+        boxes_info = []
+        for box in detection_result.boxes:
+            x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+            boxes_info.append({
+                'box': [float(x1), float(y1), float(x2), float(y2)],
+                'bottom': float(y2),
+                'confidence': float(box.conf[0].cpu().numpy()),
+                'class_id': int(box.cls[0].cpu().numpy()),
+                'class_name': detection_result.names[int(box.cls[0].cpu().numpy())]
+            })
+            
+        if boxes_info:
+            pieces_with_positions = get_cell_location(
+                unmargined,  # Only used for dimensions
+                boxes_info,  # These are in margined coordinates
+                margin=MARGIN, 
+                top_margin_extra=TOP_MARGIN_EXTRA,
+                min_confidence=0.6
+            )
+            # print("Detected pieces:")
+            
+            # for piece in pieces_with_positions:
+            #     print(f"  {piece['class_name']} at {piece['position']} (conf: {piece['confidence']:.2f})")
+        
 
         # Visualize detections
         if detection_result is not None:
             annotated = detection_result.plot()
-            cv2.imshow('Chess Piece Detection', annotated)
-        # if bottom_row_detection_result is not None:
-        #     annotated = bottom_row_detection_result.plot()
-        #     cv2.imshow('bottom Piece Detection', annotated)
-        # if second_bottom_row_detection_result is not None:
-        #     annotated = second_bottom_row_detection_result.plot()
-        #     cv2.imshow('second bottom Piece Detection', annotated)
+            cv2.imshow('Margined Frame', annotated)
+        # if unmargined_result is not None:
+        #     annotated = unmargined_result.plot()
+        #     cv2.imshow('Unmargined Frame', annotated)
     
     # Check for quit key
     if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -118,7 +212,6 @@ while running:
         # Use detection results to predict move
         if detection_result is not None:
             # TODO: Convert detection_result to board state
-            # detection_result.boxes contains all detected pieces
             pass
         
         # Transition to next state

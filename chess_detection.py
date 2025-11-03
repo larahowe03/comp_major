@@ -7,9 +7,10 @@ from ultralytics import YOLO
 from collections import deque
 import time
 import copy
-
+from ultralytics.engine.results import Boxes
 from warp_board import process_chess_image
 from split_dataset_for_YOLO_contour import preprocess_image
+
 
 
 # Model paths
@@ -195,6 +196,57 @@ def get_piece_type(class_name):
         return class_name
     return class_name
 
+def debug_ensemble_analysis(contour_result, colour_result, iou_threshold=0.5):
+    """
+    Inspect how contour and colour detections overlap before ensembling.
+    Prints IoU values, class mismatches, and potential merge candidates.
+    """
+    contour_boxes = contour_result.boxes
+    colour_boxes = colour_result.boxes
+
+    if len(contour_boxes) == 0 or len(colour_boxes) == 0:
+        print("[⚠️] One of the models returned no detections!")
+        return
+
+    contour_xyxy = contour_boxes.xyxy.cpu().numpy()
+    contour_conf = contour_boxes.conf.cpu().numpy()
+    contour_cls = contour_boxes.cls.cpu().numpy()
+    contour_names = contour_result.names
+
+    colour_xyxy = colour_boxes.xyxy.cpu().numpy()
+    colour_conf = colour_boxes.conf.cpu().numpy()
+    colour_cls = colour_boxes.cls.cpu().numpy()
+    colour_names = colour_result.names
+
+    print("\n[DEBUG] Analysing overlap between models...")
+    print(f"  Contour boxes: {len(contour_boxes)} | Colour boxes: {len(colour_boxes)}")
+
+    for i, cbox in enumerate(colour_xyxy):
+        cname = colour_names[int(colour_cls[i])]
+        cconf = colour_conf[i]
+        print(f"\n🟦 Colour {i}: {cname} (conf={cconf:.2f})")
+        print("   Matches:")
+
+        for j, kbox in enumerate(contour_xyxy):
+            kname = contour_names[int(contour_cls[j])]
+            kconf = contour_conf[j]
+
+            iou = calculate_iou(cbox, kbox)
+            same_class = (cname == kname)
+
+            # Generate result message
+            if same_class and iou > iou_threshold:
+                msg = f"      ✅ Contour {j}: {kname} (conf={kconf:.2f}) — IoU={iou:.2f} [MERGE]"
+            elif same_class and iou <= iou_threshold:
+                msg = f"      ❌ Contour {j}: {kname} (conf={kconf:.2f}) — IoU={iou:.2f} [low overlap]"
+            elif not same_class and iou > iou_threshold:
+                msg = f"      ⚠️ Contour {j}: {kname} (conf={kconf:.2f}) — IoU={iou:.2f} [class mismatch!]"
+            else:
+                msg = f"      · Contour {j}: {kname} (conf={kconf:.2f}) — IoU={iou:.2f}"
+
+            print(msg)
+
+    print("\n[END DEBUG] Ensemble analysis complete.\n")
 
 def ensemble_predictions(contour_result, colour_result, iou_threshold=0.5, conf_weight_contour=0.5):
     """Ensemble predictions from contour and color models."""
@@ -310,23 +362,12 @@ def ensemble_predictions(contour_result, colour_result, iou_threshold=0.5, conf_
         final_cls_tensor.unsqueeze(1)
     ], dim=1)
     
-    from ultralytics.engine.results import Boxes
     new_boxes = Boxes(boxes_data, colour_result.orig_shape)
     
     ensemble_result = copy.deepcopy(colour_result)
     ensemble_result.boxes = new_boxes
-
-    boxes_info = []
-    for box in ensemble_result.boxes:
-        x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-        boxes_info.append({
-            'box': [float(x1), float(y1), float(x2), float(y2)],
-            'bottom': float(y2),
-            'confidence': float(box.conf[0].cpu().numpy()),
-            'class_id': int(box.cls[0].cpu().numpy()),
-            'class_name': ensemble_result.names[int(box.cls[0].cpu().numpy())]
-        })
-    return ensemble_result, boxes_info
+    
+    return ensemble_result
 
 
 def ensemble_model(contoured_warp, coloured_warp):
@@ -334,14 +375,16 @@ def ensemble_model(contoured_warp, coloured_warp):
     contour_predictions = contour_model_prediction(contoured_warp)
     colour_predictions = colour_model_prediction(coloured_warp)
     
-    ensemble_result, boxes_info = ensemble_predictions(
+    debug_ensemble_analysis(contour_predictions, colour_predictions, iou_threshold=0.5)
+    
+    ensemble_result = ensemble_predictions(
         contour_predictions, 
         colour_predictions,
         iou_threshold=0.5,
         conf_weight_contour=0.5
     )
     
-    return ensemble_result, boxes_info
+    return ensemble_result
 
 
 def undistort(img, K, d):
@@ -429,9 +472,9 @@ def detect_pieces(warped):
     # Prepare images
     contoured_warp = preprocess_image(warped)
     coloured_warp = warped
-    
+        
     # Get ensemble predictions
-    ensemble_result, boxes_info = ensemble_model(contoured_warp, coloured_warp)
+    ensemble_result= ensemble_model(contoured_warp, coloured_warp)
     
     # Apply stabilization
     stabilized_result = stabilizer.update(ensemble_result)
@@ -451,7 +494,7 @@ def detect_pieces(warped):
             'class_name': stabilized_result.names[class_id]
         })
     
-    return stabilized_result, stabilized_boxes
+    return stabilized_result
 
 
 def cleanup_camera():
