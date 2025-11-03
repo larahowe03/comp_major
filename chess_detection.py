@@ -148,7 +148,7 @@ class PredictionStabilizer:
 def contour_model_prediction(img):
     result = contour_model.predict(
         source=img,
-        conf=0.1,
+        conf=0.2,
         imgsz=448,
         device=device,
         verbose=False
@@ -159,7 +159,7 @@ def contour_model_prediction(img):
 def colour_model_prediction(img):
     result = colour_model.predict(
         source=img,
-        conf=0.1,
+        conf=0.2,
         imgsz=448,
         device=device,
         verbose=False
@@ -367,6 +367,21 @@ def ensemble_predictions(contour_result, colour_result, iou_threshold=0.5, conf_
     ensemble_result = copy.deepcopy(colour_result)
     ensemble_result.boxes = new_boxes
     
+    # Keep only the highest-confidence detection for each class
+    unique_final = {}
+    for i, cls_id in enumerate(final_cls):
+        conf = final_confs[i]
+        if cls_id not in unique_final or conf > unique_final[cls_id]["conf"]:
+            unique_final[cls_id] = {
+                "box": final_boxes[i],
+                "conf": conf,
+                "cls": cls_id,
+            }
+
+    final_boxes = [v["box"] for v in unique_final.values()]
+    final_confs = [v["conf"] for v in unique_final.values()]
+    final_cls   = [v["cls"]  for v in unique_final.values()]
+    
     return ensemble_result
 
 
@@ -397,7 +412,7 @@ def undistort(img, K, d):
 
 
 # Initialize camera and calibration
-def initialize_camera(phone_ip="10.16.243.119", port="4747"):
+def initialize_camera(phone_ip="10.19.204.143", port="4747"):
     """Initialize camera connection."""
     urls = [
         f"http://{phone_ip}:{port}/video",
