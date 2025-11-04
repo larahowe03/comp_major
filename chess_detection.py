@@ -412,7 +412,7 @@ def undistort(img, K, d):
 
 
 # Initialize camera and calibration
-def initialize_camera(phone_ip="10.19.204.143", port="4747"):
+def initialize_camera(phone_ip="10.16.243.119", port="4747"):
     """Initialize camera connection."""
     urls = [
         f"http://{phone_ip}:{port}/video",
