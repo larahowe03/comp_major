@@ -7,7 +7,7 @@ from sklearn.model_selection import train_test_split
 # ----------------------------
 # 1️⃣ Configuration
 # ----------------------------
-data_dir = 'big_chess_piece_dataset_png'
+data_dir = 'captured_frames'
 batch_size = 16
 lr = 0.001
 seed = 42
@@ -239,7 +239,7 @@ print(f"Test Accuracy: {test_acc:.2f}%")
 # ----------------------------
 # 9️⃣ Save ONLY the best model
 # ----------------------------
-model_path = 'resnet_chess_best.pth'
+model_path = 'final_resnet_chess_best.pth'
 torch.save(model.state_dict(), model_path)
 print(f"\n✅ Best model saved as '{model_path}'")
 print(f"   Best epoch from Stage 2: {early_stopper_ft.best_epoch}")

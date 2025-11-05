@@ -8,8 +8,8 @@ from pathlib import Path
 # -------------------------------
 # CONFIGURATION
 # -------------------------------
-source_dir = Path("captured_frames")
-output_dir = Path("dataset_yolo_warp_colour")
+source_dir = Path("final_dataset")
+output_dir = Path("final_dataset_yolo_warp_colour")
 
 train_ratio = 0.7
 val_ratio = 0.2
@@ -24,27 +24,28 @@ def detect_object_bbox(img_path):
         return None
     
     h, w = img.shape[:2]
-    
+
+    # Define forbidden regions (x, y, width, height)
+    forbidden_regions = [
+        (0, 0, 40, 300),           # top-left
+        (w - 200, h - 70, 200, 70) # bottom-right
+    ]
+
     # Convert to HSV for better color detection
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     
     # Define color ranges
-    # For muted yellow/cream pieces (#8C7C48 - yellowish brown)
-    lower_blue = np.array([90, 50, 50])    # Hue ~90-130 is blue
+    lower_blue = np.array([90, 50, 50])
     upper_blue = np.array([130, 255, 255])
-    
-    # Dark brown/black mask (low value/brightness)
     lower_dark = np.array([0, 0, 0])
-    upper_dark = np.array([180, 255, 60])  # Very low brightness (V channel)
+    upper_dark = np.array([180, 255, 60])
     
     # Create masks
     mask_cream = cv2.inRange(hsv, lower_blue, upper_blue)
     mask_black = cv2.inRange(hsv, lower_dark, upper_dark)
-    
-    # Combine masks (either cream OR black pieces)
     mask_combined = cv2.bitwise_or(mask_cream, mask_black)
     
-    # Morphological operations to clean up and connect the chess piece
+    # Morphological cleanup
     kernel = np.ones((7, 7), np.uint8)
     mask_combined = cv2.morphologyEx(mask_combined, cv2.MORPH_CLOSE, kernel, iterations=3)
     mask_combined = cv2.morphologyEx(mask_combined, cv2.MORPH_OPEN, kernel, iterations=1)
@@ -54,53 +55,58 @@ def detect_object_bbox(img_path):
     
     if not contours:
         return None
-    
-    # Filter contours by area and position (should be in middle region)
+
+    def overlaps_forbidden(x, y, bw, bh):
+        """Check if a bbox overlaps any forbidden region."""
+        for fx, fy, fw, fh in forbidden_regions:
+            # Check overlap (axis-aligned bounding boxes)
+            if not (x + bw < fx or x > fx + fw or y + bh < fy or y > fy + fh):
+                return True
+        return False
+
     valid_contours = []
-    
     for contour in contours:
         area = cv2.contourArea(contour)
-        # Filter out very small noise
         if area < 200:
             continue
-            
-        # Get contour center
+        
+        x, y, bw, bh = cv2.boundingRect(contour)
+        if overlaps_forbidden(x, y, bw, bh):
+            continue  # skip anything that touches forbidden region
+        
         M = cv2.moments(contour)
         if M["m00"] == 0:
             continue
         cx = int(M["m10"] / M["m00"])
         cy = int(M["m01"] / M["m00"])
         
-        # Check if roughly in the middle region (within middle 80% of image)
         if (0.15 * w < cx < 0.85 * w) and (0.15 * h < cy < 0.85 * h):
             valid_contours.append(contour)
     
     if not valid_contours:
-        # If no valid contours in middle, just take the largest one
-        if contours:
-            largest_contour = max(contours, key=cv2.contourArea)
+        # Fall back to largest non-forbidden contour, if any
+        non_forbidden = [c for c in contours if not overlaps_forbidden(*cv2.boundingRect(c))]
+        if non_forbidden:
+            largest_contour = max(non_forbidden, key=cv2.contourArea)
         else:
             return None
     else:
-        # Get the largest valid contour (the chess piece)
         largest_contour = max(valid_contours, key=cv2.contourArea)
     
-    # Get bounding box
+    # Bounding box
     x, y, box_w, box_h = cv2.boundingRect(largest_contour)
-    
-    # Add some padding to the bounding box
     padding = 5
     x = max(0, x - padding)
     y = max(0, y - padding)
     box_w = min(w - x, box_w + 2 * padding)
     box_h = min(h - y, box_h + 2 * padding)
-    
-    # Convert to YOLO format (normalized center coordinates and dimensions)
+
+    # Convert to YOLO format
     x_center = (x + box_w / 2) / w
     y_center = (y + box_h / 2) / h
     norm_width = box_w / w
     norm_height = box_h / h
-    
+
     return (x_center, y_center, norm_width, norm_height), (x, y, box_w, box_h)
 
 
@@ -194,9 +200,9 @@ for class_dir in source_dir.iterdir():
 # Original images
 yaml_path = output_dir / "data.yaml"
 with open(yaml_path, "w") as f:
-    f.write(f"train: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/dataset_yolo_warp_colour/images/train\n")
-    f.write(f"val: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/dataset_yolo_warp_colour/images/val\n")
-    f.write(f"test: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/dataset_yolo_warp_colour/images/test\n\n")
+    f.write(f"train: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/final_dataset_yolo_warp_colour/images/train\n")
+    f.write(f"val: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/final_dataset_yolo_warp_colour/images/val\n")
+    f.write(f"test: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/final_dataset_yolo_warp_colour/images/test\n\n")
     f.write(f"nc: {len(class_names)}\n")
     f.write("names: [\n")
     for i, name in enumerate(class_names):

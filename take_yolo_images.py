@@ -9,7 +9,7 @@ from warp_board import process_chess_image
 
 if __name__ == "__main__":
     # Replace with YOUR phone's IP and port from the DroidCam app
-    phone_ip = "10.19.204.143"
+    phone_ip = "10.16.243.119"
     port = "4747"
 
     # DroidCam streaming URLs - try these in order:
@@ -41,7 +41,7 @@ if __name__ == "__main__":
     d = data['distortion_coeffs']
 
     # Create output directory if it doesn't exist
-    output_dir = "captured_frames/black_pawn"
+    output_dir = "final_dataset/white_pawn"
     os.makedirs(output_dir, exist_ok=True)
 
     print("\n=== Controls ===")
@@ -59,7 +59,7 @@ if __name__ == "__main__":
 
         undistorted = undistort(frame, K, d)
 
-        warped, contoured_img = process_chess_image(undistorted)
+        warped, contoured_img, pts_src  = process_chess_image(undistorted)
 
         # Display the frame
         try:
