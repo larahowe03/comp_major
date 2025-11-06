@@ -347,7 +347,7 @@ UPDATE_INTERVAL = 1  # Update every N frames for less critical windows
 frame_count = 0
 
 while running:
-    print("current_state", current_state)
+    # print("current_state", current_state)
     frame_count += 1
     
     # Get current frame

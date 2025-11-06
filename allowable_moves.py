@@ -163,7 +163,7 @@ def detect_move(prev_board, current_board):
     return {
         'valid': True,
         'from': (from_row, from_col),
-        'to': (row, to_col),
+        'to': (to_row, to_col),  # FIXED: was (row, to_col)
         'piece': moved_piece,
         'captured': captured_piece,
         'is_legal': is_legal,
