@@ -27,6 +27,7 @@ initial_state = [
 def detect_move(prev_board, current_board):
     """
     Detect which piece moved by comparing board states.
+    Only tracks: occupied -> empty (piece removed) and empty -> occupied (piece added)
     
     Returns:
         dict: {
@@ -50,9 +51,9 @@ def detect_move(prev_board, current_board):
             'error': 'Invalid board state'
         }
     
-    # Find all differences
-    pieces_removed = []  # (row, col, piece)
-    pieces_added = []    # (row, col, piece)
+    # Find all differences - only track occupancy changes
+    pieces_removed = []  # (row, col, piece) - was occupied, now empty
+    pieces_added = []    # (row, col, piece) - was empty, now occupied
     
     for row in range(8):
         for col in range(8):
@@ -62,31 +63,27 @@ def detect_move(prev_board, current_board):
             prev_occupied = prev_piece is not None
             curr_occupied = curr_piece is not None
             
-            # Piece removed
+            # Piece removed: was occupied, now empty
             if prev_occupied and not curr_occupied:
                 pieces_removed.append((row, col, prev_piece))
             
-            # Piece added (and wasn't there before)
+            # Piece added: was empty, now occupied
             elif not prev_occupied and curr_occupied:
                 pieces_added.append((row, col, curr_piece))
             
-            # Piece changed (capture case)
-            elif prev_occupied and curr_occupied:
-                if prev_piece.id != curr_piece.id:
-                    pieces_removed.append((row, col, prev_piece))
-                    pieces_added.append((row, col, curr_piece))
+            # If both occupied or both empty, ignore (no change in occupancy)
     
     # Validate move pattern
     # Normal move: 1 removed, 1 added
-    # Capture: 2 removed (one piece + captured piece), 1 added
+    # Capture: 2 removed (piece moved away + captured piece disappeared), 1 added
     
     if len(pieces_added) == 1 and len(pieces_removed) == 1:
-        # Normal move
+        # Normal move: one square emptied, one square filled
         from_row, from_col, moved_piece = pieces_removed[0]
         to_row, to_col, arrived_piece = pieces_added[0]
         captured_piece = None
         
-        # Verify it's the same piece (by type and color)
+        # Verify it's the same piece type and color (basic sanity check)
         if (moved_piece.type != arrived_piece.type or 
             moved_piece.colour != arrived_piece.colour):
             return {
@@ -100,7 +97,7 @@ def detect_move(prev_board, current_board):
             }
     
     elif len(pieces_added) == 1 and len(pieces_removed) == 2:
-        # Capture move
+        # Capture move: two squares emptied, one square filled
         to_row, to_col, arrived_piece = pieces_added[0]
         
         # One of the removed pieces should be at the destination (captured)
@@ -111,8 +108,10 @@ def detect_move(prev_board, current_board):
         
         for r, c, piece in pieces_removed:
             if r == to_row and c == to_col:
+                # This piece was at the destination - it was captured
                 captured_piece = piece
             else:
+                # This piece moved away from its square
                 moved_piece = piece
                 from_row, from_col = r, c
         
@@ -127,7 +126,7 @@ def detect_move(prev_board, current_board):
                 'error': 'Invalid capture pattern'
             }
         
-        # Verify piece types match
+        # Verify the moving piece matches the arrived piece
         if (moved_piece.type != arrived_piece.type or 
             moved_piece.colour != arrived_piece.colour):
             return {
@@ -152,7 +151,6 @@ def detect_move(prev_board, current_board):
         }
     
     # Check if move is legal using allowable_moves
-    # Pass prev_board directly to get_allowable_move
     try:
         allowable_moves = get_allowable_move(prev_board, from_row, from_col)
         is_legal = [to_row, to_col] in allowable_moves
@@ -163,7 +161,7 @@ def detect_move(prev_board, current_board):
     return {
         'valid': True,
         'from': (from_row, from_col),
-        'to': (row, to_col),
+        'to': (to_row, to_col),
         'piece': moved_piece,
         'captured': captured_piece,
         'is_legal': is_legal,
