@@ -14,14 +14,20 @@ MOVING = 3
 PREDICT = 4
 CHANGED = 5
 UPDATE_BOARD = 6
+INVALID = 7  # New state for invalid moves
 
 current_state = IDLE
 prev_state = IDLE
 
 # Prediction voting system
 VOTING_PERIOD = 1.0  # seconds
+STABILITY_DELAY = 2.0  # seconds - delay before transitioning from MOVING to PREDICT
 prediction_history = deque(maxlen=150)  # ~5 seconds at 30fps
 voting_start_time = None
+stability_start_time = None
+
+# Invalid move tracking
+invalid_move_info = None  # Stores the invalid move details
 
 def get_most_common_board_state(prediction_history):
     """
@@ -185,6 +191,21 @@ def has_board_changed(prev_board, current_board):
             # If one square is empty and the other isn't, board changed
             if prev_occupied != curr_occupied:
                 return True
+    
+    return False
+
+def check_piece_moved_from_invalid_square(prev_board, current_board, invalid_square):
+    """Check if the piece on the invalid square has been moved"""
+    if prev_board is None or current_board is None or invalid_square is None:
+        return False
+    
+    row, col = invalid_square
+    prev_piece = prev_board[row][col]
+    curr_piece = current_board[row][col]
+    
+    # If there was a piece and now there isn't, it moved
+    if prev_piece is not None and curr_piece is None:
+        return True
     
     return False
 
@@ -423,6 +444,7 @@ while running:
         # Detect movement
         if not is_stable:
             current_state = MOVING
+            stability_start_time = None
             print("Movement detected - transitioning to MOVING")
     
     elif current_state == MOVING:
@@ -430,9 +452,21 @@ while running:
         prediction_history.clear()
         voting_start_time = time.time()
         
+        # Start stability timer when first detecting stability
         if is_stable:
-            current_state = PREDICT
-            print("Stable after movement - transitioning to PREDICT")
+            if stability_start_time is None:
+                stability_start_time = time.time()
+                print("Board stable, waiting 2 seconds before prediction...")
+            
+            # Check if we've been stable for the required delay
+            elapsed_stability_time = time.time() - stability_start_time
+            if elapsed_stability_time >= STABILITY_DELAY:
+                current_state = PREDICT
+                stability_start_time = None  # Reset for next time
+                print("Stability delay complete - transitioning to PREDICT")
+        else:
+            # Reset timer if movement detected again
+            stability_start_time = None
     
     elif current_state == PREDICT:
         # Collect predictions for voting period
@@ -475,13 +509,27 @@ while running:
                         # Update board state
                         board_state = most_common_board
                         prev_board_state = board_state
+                        
+                        # Clear invalid move info since move was legal
+                        invalid_move_info = None
                     else:
                         # Illegal move detected
                         print(f"Illegal move detected: {move_info['error']}")
-                        print("Keeping previous board state")
+                        print("Keeping previous board state - waiting for piece to be moved to valid position")
                         
-                        # Highlight move as invalid (RED)
-                        gui.set_last_move(move_info['from'], move_info['to'], is_valid=False)
+                        # Store invalid move info
+                        invalid_move_info = move_info
+                        
+                        # Highlight ONLY the destination square as RED (illegal position)
+                        gui.set_last_move(None, move_info['to'], is_valid=False)
+                        
+                        # Transition to INVALID state
+                        current_state = INVALID
+                        print("Transitioning to INVALID state - piece must be moved to valid position")
+                        
+                        # Don't update board_state - keep previous valid state
+                        # But update the tracking board to the current state
+                        board_state = most_common_board
                 else:
                     # Invalid move pattern
                     print(f"Invalid move pattern: {move_info['error']}")
@@ -492,13 +540,84 @@ while running:
             else:
                 print("No valid predictions collected, keeping previous state")
             
-            # Reset voting
+            # Reset voting (only if not transitioning to INVALID)
+            if current_state != INVALID:
+                prediction_history.clear()
+                voting_start_time = None
+                
+                # Transition back to static
+                current_state = STATIC
+                print("Returning to STATIC state")
+            else:
+                # Still clear prediction history for INVALID state
+                prediction_history.clear()
+                voting_start_time = None
+    
+    elif current_state == INVALID:
+        # Stay in INVALID state until piece is moved from the illegal square
+        # Keep showing the red highlight
+        
+        # Continuously collect predictions when stable
+        if is_stable and warp_unmargined is not None and final_preds is not None:
+            current_board = get_cell_location(warp_unmargined, final_preds, bottom_loc)
+            if current_board is not None:
+                prediction_history.append(current_board)
+                
+                # Check if piece has been moved from invalid square
+                if len(prediction_history) > 30:  # ~1 second of predictions
+                    most_common_board = get_most_common_board_state(prediction_history)
+                    
+                    if most_common_board is not None and invalid_move_info is not None:
+                        invalid_square = invalid_move_info['to']
+                        
+                        # Check if piece moved from invalid square
+                        if check_piece_moved_from_invalid_square(board_state, most_common_board, invalid_square):
+                            print("Piece moved from invalid square - checking new position...")
+                            
+                            # Detect the new move
+                            move_info = detect_move(prev_board_state, most_common_board)
+                            
+                            if move_info['valid'] and move_info['is_legal']:
+                                # Now it's a legal move!
+                                from_notation = get_chess_notation(move_info['from'][0], move_info['from'][1])
+                                to_notation = get_chess_notation(move_info['to'][0], move_info['to'][1])
+                                
+                                piece_name = f"{move_info['piece'].colour} {move_info['piece'].type}"
+                                
+                                if move_info['captured']:
+                                    captured_name = f"{move_info['captured'].colour} {move_info['captured'].type}"
+                                    print(f"Legal move: {piece_name} from {from_notation} to {to_notation} (captured {captured_name})")
+                                else:
+                                    print(f"Legal move: {piece_name} from {from_notation} to {to_notation}")
+                                
+                                # Highlight as valid (GREEN)
+                                gui.set_last_move(move_info['from'], move_info['to'], is_valid=True)
+                                
+                                # Update board state
+                                board_state = most_common_board
+                                prev_board_state = board_state
+                                
+                                # Clear invalid move info
+                                invalid_move_info = None
+                                
+                                # Return to STATIC state
+                                prediction_history.clear()
+                                current_state = STATIC
+                                print("Valid move made - returning to STATIC state")
+                            else:
+                                # Still illegal - update the red highlight to new position
+                                if move_info['valid']:
+                                    print(f"Still illegal: {move_info['error']}")
+                                    gui.set_last_move(None, move_info['to'], is_valid=False)
+                                    invalid_move_info = move_info
+                                    board_state = most_common_board
+                                
+                                prediction_history.clear()
+        
+        # Detect movement
+        if not is_stable:
+            print("Movement detected in INVALID state - waiting for stability...")
             prediction_history.clear()
-            voting_start_time = None
-            
-            # Transition back to static
-            current_state = STATIC
-            print("Returning to STATIC state")
 
 # Cleanup
 cleanup_camera()
