@@ -14,7 +14,6 @@ UPDATE_BOARD = 6
 
 current_state = IDLE
 prev_state = IDLE
-
 def get_cell_location(unmargined_img, final_preds, bottom_loc):
     # Get image dimensions
     h, w = unmargined_img.shape[:2]
@@ -33,22 +32,29 @@ def get_cell_location(unmargined_img, final_preds, bottom_loc):
         
         x, y = loc
         
-        # Check if location is within valid board area
-        if x < 0 or x >= w or y < 0 or y >= h:
-            print(f"Warning: Piece at ({x}, {y}) is outside board bounds")
+        # Check if location is within valid board area (with some tolerance)
+        if x < -cell_width or x >= w + cell_width or y < -cell_height or y >= h + cell_height:
+            # print(f"Warning: Piece at ({x}, {y}) is too far outside board bounds")
             continue
         
-        # Determine which cell this piece belongs to
+        # Determine which column this piece belongs to
         col = int(x / cell_width)
-        # row = int(y / cell_height)
-        
-        bias = cell_height * 0.1  # 10% of cell height
-        adjusted_y = max(0, y - bias)
-        row = int(adjusted_y / cell_height)
-        
-        # Clamp to valid range [0, 7] just in case
         col = max(0, min(7, col))
-        row = max(0, min(7, row))
+        
+        # Find the closest row by finding which row boundary (bottom edge) is closest
+        min_gap = float('inf')
+        row = 0
+        
+        for i in range(8):
+            # Calculate the bottom y-coordinate of row i (the gap/boundary)
+            row_bottom_y = (i + 1) * cell_height
+            
+            # Calculate absolute distance from piece to this row's bottom boundary
+            gap = abs(row_bottom_y - y)
+            
+            if gap < min_gap:
+                min_gap = gap
+                row = i
         
         # Get chess notation for logging
         notation = get_chess_notation(row, col)
@@ -60,7 +66,7 @@ def get_cell_location(unmargined_img, final_preds, bottom_loc):
             'class_name': pred
         })
         
-        print(f"Detected {pred} at {notation} (row={row}, col={col}, pixel=({x:.1f}, {y:.1f}))")
+        # print(f"Detected {pred} at {notation} (row={row}, col={col}, pixel=({x:.1f}, {y:.1f}), min_gap={min_gap:.1f})")
     
     # Convert to board state using existing function
     board_state = detections_to_board(pieces_with_positions)
@@ -144,12 +150,12 @@ def stabilise_piece_prediction(contour_boxes, colour_boxes, contour_classes, col
     if previous_boxes is None:
         previous_boxes = []
     
-    print(f"\n=== STABILISE_PIECE_PREDICTION DEBUG ===")
-    print(f"Contour boxes: {len(contour_boxes)}")
-    print(f"Colour boxes: {len(colour_boxes)}")
-    print(f"Piece colours (HSV-detected): {piece_colours}")
-    print(f"Contour classes: {contour_classes}")
-    print(f"Colour classes: {colour_classes}")
+    # print(f"\n=== STABILISE_PIECE_PREDICTION DEBUG ===")
+    # print(f"Contour boxes: {len(contour_boxes)}")
+    # print(f"Colour boxes: {len(colour_boxes)}")
+    # print(f"Piece colours (HSV-detected): {piece_colours}")
+    # print(f"Contour classes: {contour_classes}")
+    # print(f"Colour classes: {colour_classes}")
     
     final_boxes = []
     final_preds = []
@@ -168,16 +174,16 @@ def stabilise_piece_prediction(contour_boxes, colour_boxes, contour_classes, col
             }
     
     for i, (contour_box, contour_pred) in enumerate(zip(contour_boxes, contour_classes)):
-        print(f"\n--- Processing contour box {i} ---")
-        print(f"  Contour pred: {contour_pred}")
+        # print(f"\n--- Processing contour box {i} ---")
+        # print(f"  Contour pred: {contour_pred}")
         
         # Ensure box is a dict
         if not isinstance(contour_box, dict):
-            print(f"  ERROR: contour_box is not a dict! Type: {type(contour_box)}")
+            # print(f"  ERROR: contour_box is not a dict! Type: {type(contour_box)}")
             continue
         
         hsv_piece_colour = piece_colours[i] if i < len(piece_colours) else None
-        print(f"  HSV detected piece colour: {hsv_piece_colour}")
+        # print(f"  HSV detected piece colour: {hsv_piece_colour}")
         
         # Find matching colour box with maximum overlap
         best_overlap = 0
@@ -189,9 +195,9 @@ def stabilise_piece_prediction(contour_boxes, colour_boxes, contour_classes, col
             if overlap > best_overlap:
                 best_overlap = overlap
                 best_colour_pred = colour_pred
-                print(f"  Found colour match with box {j}: overlap={overlap:.2f}, pred={colour_pred}")
+                # print(f"  Found colour match with box {j}: overlap={overlap:.2f}, pred={colour_pred}")
         
-        print(f"  Best overlap: {best_overlap:.2f}, Best colour pred: {best_colour_pred}")
+        # print(f"  Best overlap: {best_overlap:.2f}, Best colour pred: {best_colour_pred}")
         
         # Get previous prediction for this position
         center_x = ((contour_box["x1"] + contour_box["x2"]) // 2) // 30 * 30
@@ -204,7 +210,7 @@ def stabilise_piece_prediction(contour_boxes, colour_boxes, contour_classes, col
         if best_overlap > 0 and best_colour_pred is not None and hsv_piece_colour is not None:
             # Extract piece colour from prediction (e.g., "white_pawn" -> "white")
             pred_piece_colour = best_colour_pred.split('_')[0].lower()
-            print(f"  Colour model says: {pred_piece_colour}, HSV says: {hsv_piece_colour}")
+            # print(f"  Colour model says: {pred_piece_colour}, HSV says: {hsv_piece_colour}")
             
             # Validate: colour prediction should match HSV detection
             colour_match = (pred_piece_colour == hsv_piece_colour)
@@ -213,10 +219,10 @@ def stabilise_piece_prediction(contour_boxes, colour_boxes, contour_classes, col
                 final_boxes.append(contour_box)
                 final_preds.append(best_colour_pred)
                 final_sources.append('colour')
-                print(f"  ✓ USING CURRENT COLOUR PREDICTION (MATCHES HSV): {best_colour_pred}")
+                # print(f"  ✓ USING CURRENT COLOUR PREDICTION (MATCHES HSV): {best_colour_pred}")
                 continue
-            else:
-                print(f"  ✗ COLOUR MISMATCH: model={pred_piece_colour}, HSV={hsv_piece_colour}")
+            # else:
+                # print(f"  ✗ COLOUR MISMATCH: model={pred_piece_colour}, HSV={hsv_piece_colour}")
         
         # Option 2: Hold previous colour prediction (REDUCE FLUTTER)
         if prev_data is not None and prev_data['source'] == 'colour':
@@ -225,7 +231,7 @@ def stabilise_piece_prediction(contour_boxes, colour_boxes, contour_classes, col
             final_boxes.append(contour_box)
             final_preds.append(prev_data['pred'])
             final_sources.append('colour')
-            print(f"  ✓ HOLDING PREVIOUS COLOUR PREDICTION: {prev_data['pred']}")
+            # print(f"  ✓ HOLDING PREVIOUS COLOUR PREDICTION: {prev_data['pred']}")
             continue
         
         # Option 3: Fall back to contour prediction with HSV colour
@@ -233,11 +239,11 @@ def stabilise_piece_prediction(contour_boxes, colour_boxes, contour_classes, col
         final_boxes.append(contour_box)
         final_preds.append(final_pred)
         final_sources.append('contour')
-        print(f"  ⚠ USING CONTOUR PREDICTION: {final_pred}")
+    #     print(f"  ⚠ USING CONTOUR PREDICTION: {final_pred}")
     
-    print(f"\n=== FINAL RESULTS ===")
-    print(f"Final preds: {final_preds}")
-    print(f"Final sources: {final_sources}")
+    # print(f"\n=== FINAL RESULTS ===")
+    # print(f"Final preds: {final_preds}")
+    # print(f"Final sources: {final_sources}")
     
     return final_boxes, final_preds, final_sources
 def visualise_detections(img, boxes, predictions, bottom_loc, class_names=None):
@@ -314,12 +320,12 @@ def transform_boxes_remove_margin(boxes, margin=80):
     return transformed_boxes, bottom_loc
 
 # Initialize detection system
-print("Initializing chess detection system...")
+# print("Initializing chess detection system...")
 if not init_detection_system():
-    print("Failed to initialize detection system")
+    # print("Failed to initialize detection system")
     exit()
 
-print("System initialized. Starting main loop...")
+# print("System initialized. Starting main loop...")
 
 running = True
 detection_result = None
@@ -332,10 +338,9 @@ MARGIN = 80
 final_preds = None
 final_sources = None
 
-while running:
-    # Always update GUI
-    running = gui.do_gui(board_state)
-    
+prev_board_state = board_state
+
+while running:    
     # Get current frame from camera
     warp_margined, warp_unmargined, contoured_img, pts_src = get_current_frame()
 
@@ -346,7 +351,7 @@ while running:
 
     is_stable, max_std, details = calculate_corner_variation(pts_src_buffer, threshold=10.0)
 
-    print("is_stable", is_stable)
+    # print("is_stable", is_stable)
     print("current_state", current_state)
         
     if warp_margined is not None:
@@ -375,24 +380,27 @@ while running:
         # Visualize on unmargined image
         annotated_img_unmargined = visualise_detections(warp_unmargined, final_boxes_unmargined, final_preds, bottom_loc)
         cv2.imshow('annotated_img_unmargined', cv2.cvtColor(annotated_img_unmargined, cv2.COLOR_BGR2RGB))
-
-        new_board_state = get_cell_location(warp_unmargined, final_preds, bottom_loc)
-        board_state = new_board_state
         
         
     if cv2.waitKey(1) & 0xFF == ord('q'):
         running = False
     
+    # Always update GUI
+    running = gui.do_gui(board_state, prev_board_state, current_state)
+
     # State machine logic
     if current_state == IDLE:
         # Wait for board setup button
         if gui.setup_mode:
             prev_state = current_state
             current_state = STATIC
-            print("Game beginning - transitioning to STATIC state")
+            # print("Game beginning - transitioning to STATIC state")
     
     elif current_state == STATIC:
         # Monitor board for changes
+        board_state = get_cell_location(warp_unmargined, final_preds, bottom_loc)
+        prev_board_state = board_state
+
         if is_stable == False:
             current_state = MOVING
     
@@ -428,6 +436,6 @@ while running:
         # current_state = STATIC
 
 # Cleanup
-print("Cleaning up...")
+# print("Cleaning up...")
 cleanup_camera()
 gui.cleanup()

@@ -135,9 +135,15 @@ board_setup_button = Button(
 
 # Clock for frame rate control
 clock = pygame.time.Clock()
+IDLE = 1
+STATIC = 2
+MOVING = 3
+PREDICT = 4
+CHANGED = 5
+UPDATE_BOARD = 6
 
 
-def do_gui(board_state=None):
+def do_gui(board_state, prev_board_state, current_state):
     """
     Run one frame of the GUI.
     
@@ -147,8 +153,8 @@ def do_gui(board_state=None):
     Returns:
         bool: False if window was closed, True otherwise
     """
-    if board_state is None:
-        board_state = initial_state
+    if current_state is MOVING:
+        board_state = prev_board_state
     
     # Handle events
     for event in pygame.event.get():
