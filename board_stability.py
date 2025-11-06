@@ -1,5 +1,10 @@
 import numpy as np
 
+# ------------------------------------------------------------------------
+# BOARD STABILITY
+# Contains functions to check if the board streaming is stable
+# ------------------------------------------------------------------------
+
 def calculate_corner_variation(pts_buffer, threshold=10.0):
     """
     Check if there is large variation in board corner positions.
@@ -15,6 +20,7 @@ def calculate_corner_variation(pts_buffer, threshold=10.0):
             - max_std: Maximum standard deviation across all corners
             - variation_details: Dict with per-corner standard deviations
     """
+    
     # Filter out None values
     valid_pts = [pts for pts in pts_buffer if pts is not None]
     

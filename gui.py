@@ -1,6 +1,11 @@
 import pygame
 import sys
 
+# ------------------------------------------------------------------------
+# GUI FUNCTIONS
+# Contains functions to run GUI
+# ------------------------------------------------------------------------
+
 # Initialize Pygame
 pygame.init()
 
@@ -13,8 +18,8 @@ pygame.display.set_caption("Chess Board")
 # Define colors
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
-BUTTON_COLOR = (70, 130, 180)  # Steel blue
-BUTTON_HOVER_COLOR = (100, 149, 237)  # Cornflower blue
+BUTTON_COLOR = (70, 130, 180)
+BUTTON_HOVER_COLOR = (100, 149, 237)  
 BUTTON_TEXT_COLOR = WHITE
 GREEN_HIGHLIGHT = (0, 255, 0, 100)  # Valid move - transparent green
 RED_HIGHLIGHT = (255, 0, 0, 100)    # Invalid move - transparent red
@@ -34,9 +39,6 @@ BUTTON_Y = BOARD_HEIGHT + 20
 # Font
 font = pygame.font.Font(None, 36)
 
-
-
-
 # Setup mode flag
 setup_mode = False
 
@@ -44,41 +46,10 @@ king_in_check_info = None
 attackers_info = []         # list of (row, col)
 is_checkmate = False
 
-def set_king_in_check(colour, pos):
-    """Highlight the king's square and show text until cleared."""
-    global king_in_check_info
-    king_in_check_info = {'colour': colour, 'pos': pos}
-    
-def set_check_status(colour, king_pos, attackers, checkmate=False):
-    """
-    Display king in check/checkmate and highlight attackers.
-    Args:
-        colour: 'white' or 'black'
-        king_pos: (row, col)
-        attackers: list of (row, col) positions of pieces attacking the king
-        checkmate: True if checkmate
-    """
-    global king_in_check_info, attackers_info, is_checkmate
-    king_in_check_info = {'colour': colour, 'pos': king_pos}
-    attackers_info = attackers or []
-    is_checkmate = checkmate
-
-
-def clear_check_status():
-    """Clear any check/checkmate highlight."""
-    global king_in_check_info, attackers_info, is_checkmate
-    king_in_check_info = None
-    attackers_info = []
-    is_checkmate = False
-
-
-def clear_king_in_check():
-    """Remove king-in-check status."""
-    global king_in_check_info
-    king_in_check_info = None
-
 # Move highlight info
-last_move_info = None  # Will store {'from': (row, col), 'to': (row, col), 'valid': bool}
+# Will store {'from': (row, col), 'to': (row, col), 'valid': bool}
+last_move_info = None  
+
 
 class Button:
     def __init__(self, x, y, width, height, text, color, hover_color, text_color):
@@ -122,10 +93,73 @@ class Button:
         self.enabled = True
 
 
+# Create button
+board_setup_button = Button(
+    BUTTON_X, BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT,
+    "Board Setup", BUTTON_COLOR, BUTTON_HOVER_COLOR, BUTTON_TEXT_COLOR
+)
+
+# Clock for frame rate control
+clock = pygame.time.Clock()
+IDLE = 1
+STATIC = 2
+MOVING = 3
+PREDICT = 4
+INVALID = 5
+
+
+def set_king_in_check(colour, pos):
+    """
+    Highlight the king's square and show text until cleared.
+    """
+    
+    global king_in_check_info
+    king_in_check_info = {'colour': colour, 'pos': pos}
+    
+    
+def set_check_status(colour, king_pos, attackers, checkmate=False):
+    """
+    Display king in check/checkmate and highlight attackers.
+    Args:
+        colour: 'white' or 'black'
+        king_pos: (row, col)
+        attackers: list of (row, col) positions of pieces attacking the king
+        checkmate: True if checkmate
+    """
+    
+    global king_in_check_info, attackers_info, is_checkmate
+    king_in_check_info = {'colour': colour, 'pos': king_pos}
+    attackers_info = attackers or []
+    is_checkmate = checkmate
+
+
+def clear_check_status():
+    """
+    Clear any check/checkmate highlight.
+    """
+    
+    global king_in_check_info, attackers_info, is_checkmate
+    king_in_check_info = None
+    attackers_info = []
+    is_checkmate = False
+
+
+def clear_king_in_check():
+    """
+    Remove king-in-check status.
+    """
+    
+    global king_in_check_info
+    king_in_check_info = None
+
+
 def draw_grid():
-    """Draw a black and white checkerboard grid"""
-    GRAY = (160, 160, 160)  # medium gray
-    WHITE = (245, 245, 245) # soft white
+    """
+    Draw a black and white checkerboard grid
+    """
+    
+    GRAY = (160, 160, 160)  
+    WHITE = (245, 245, 245) 
     
     for row in range(ROWS):
         for col in range(COLS):
@@ -144,7 +178,10 @@ def draw_grid():
 
 
 def draw_move_highlights():
-    """Draw highlights for the last move (green for valid, red for invalid)"""
+    """
+    Draw highlights for the last move (green for valid, red for invalid)
+    """
+    
     global last_move_info
     
     if last_move_info is None:
@@ -187,13 +224,17 @@ def draw_move_highlights():
         # Draw thicker border for destination
         pygame.draw.rect(screen, highlight_color, (x, y, CELL_WIDTH, CELL_HEIGHT), 6)
 
+
 def draw_king_check_status():
-    """Draw highlights for king in check or checkmate, plus attacker highlights."""
+    """
+    Draw highlights for king in check or checkmate, plus attacker highlights.
+    """
+    
     global king_in_check_info, attackers_info, is_checkmate
     if king_in_check_info is None:
         return
 
-    # --- Highlight the king’s square in red ---
+    # Highlight the king’s square in red
     row, col = king_in_check_info['pos']
     x = col * CELL_WIDTH
     y = row * CELL_HEIGHT
@@ -204,7 +245,7 @@ def draw_king_check_status():
     screen.blit(king_surface, (x, y))
     pygame.draw.rect(screen, (255, 0, 0), (x, y, CELL_WIDTH, CELL_HEIGHT), 5)
 
-    # --- Highlight attackers in blue ---
+    # Highlight attackers in blue 
     for attacker in attackers_info:
         r, c = attacker
         ax = c * CELL_WIDTH
@@ -215,7 +256,7 @@ def draw_king_check_status():
         screen.blit(atk_surface, (ax, ay))
         pygame.draw.rect(screen, (0, 0, 255), (ax, ay, CELL_WIDTH, CELL_HEIGHT), 4)
 
-    # --- Draw the text message ---
+    # Draw the text message
     if is_checkmate:
         msg = f"{king_in_check_info['colour'].capitalize()} King Checkmate!"
         color = (255, 0, 0)
@@ -229,7 +270,10 @@ def draw_king_check_status():
 
 
 def draw_pieces(board):
-    """Draw pieces on the board based on the initial state"""
+    """
+    Draw pieces on the board based on the initial state
+    """
+    
     for row in range(ROWS):
         for col in range(COLS):
             piece = board[row][col]
@@ -249,27 +293,14 @@ def draw_pieces(board):
 
 
 def handle_board_setup():
-    """Handle the board setup button click"""
+    """
+    Handle the board setup button click
+    """
+    
     global setup_mode
     setup_mode = True
     board_setup_button.disable()
     print("Board Setup mode activated!")
-
-
-# Create button
-board_setup_button = Button(
-    BUTTON_X, BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT,
-    "Board Setup", BUTTON_COLOR, BUTTON_HOVER_COLOR, BUTTON_TEXT_COLOR
-)
-
-# Clock for frame rate control
-clock = pygame.time.Clock()
-IDLE = 1
-STATIC = 2
-MOVING = 3
-PREDICT = 4
-CHANGED = 5
-UPDATE_BOARD = 6
 
 
 def set_last_move(from_pos, to_pos, is_valid):
@@ -281,6 +312,7 @@ def set_last_move(from_pos, to_pos, is_valid):
         to_pos: (row, col) tuple for destination square
         is_valid: bool indicating if move was valid
     """
+    
     global last_move_info
     last_move_info = {
         'from': from_pos,
@@ -290,7 +322,10 @@ def set_last_move(from_pos, to_pos, is_valid):
 
 
 def clear_last_move():
-    """Clear the move highlight."""
+    """
+    Clear the move highlight.
+    """
+    
     global last_move_info
     last_move_info = None
 
@@ -305,6 +340,7 @@ def do_gui(board_state, prev_board_state, current_state):
     Returns:
         bool: False if window was closed, True otherwise
     """
+    
     if current_state is MOVING:
         board_state = prev_board_state
     
@@ -352,6 +388,9 @@ def do_gui(board_state, prev_board_state, current_state):
 
 
 def cleanup():
-    """Clean up pygame resources"""
+    """
+    Clean up pygame resources
+    """
+    
     pygame.quit()
     sys.exit()

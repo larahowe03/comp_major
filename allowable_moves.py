@@ -1,4 +1,8 @@
-# This file contains the matrices for the moves that can be performed by the chess pieces
+# ------------------------------------------------------------------------
+# ALLOWABLE MOVES
+# This file contains the matrices for the moves that can be performaned
+# by the chess pieces
+# ------------------------------------------------------------------------
 
 class Piece:
     unique_id = 0  # Class-level variable shared across all instances
@@ -24,153 +28,12 @@ initial_state = [
      Piece("king", "black"), Piece("bishop", "black"), Piece("knight", "black"), Piece("castle", "black")]
 ]
 
-def detect_move(prev_board, current_board):
-    """
-    Detect which piece moved by comparing board states.
-    Only tracks: occupied -> empty (piece removed) and empty -> occupied (piece added)
-    
-    Returns:
-        dict: {
-            'valid': bool,
-            'from': (row, col) or None,
-            'to': (row, col) or None,
-            'piece': Piece object or None,
-            'captured': Piece object or None,
-            'is_legal': bool,
-            'error': str or None
-        }
-    """
-    if prev_board is None or current_board is None:
-        return {
-            'valid': False,
-            'from': None,
-            'to': None,
-            'piece': None,
-            'captured': None,
-            'is_legal': False,
-            'error': 'Invalid board state'
-        }
-    
-    # Find all differences - only track occupancy changes
-    pieces_removed = []  # (row, col, piece) - was occupied, now empty
-    pieces_added = []    # (row, col, piece) - was empty, now occupied
-    
-    for row in range(8):
-        for col in range(8):
-            prev_piece = prev_board[row][col]
-            curr_piece = current_board[row][col]
-            
-            prev_occupied = prev_piece is not None
-            curr_occupied = curr_piece is not None
-            
-            # Piece removed: was occupied, now empty
-            if prev_occupied and not curr_occupied:
-                pieces_removed.append((row, col, prev_piece))
-            
-            # Piece added: was empty, now occupied
-            elif not prev_occupied and curr_occupied:
-                pieces_added.append((row, col, curr_piece))
-            
-            # If both occupied or both empty, ignore (no change in occupancy)
-    
-    # Validate move pattern
-    # Normal move: 1 removed, 1 added
-    # Capture: 2 removed (piece moved away + captured piece disappeared), 1 added
-    
-    if len(pieces_added) == 1 and len(pieces_removed) == 1:
-        # Normal move: one square emptied, one square filled
-        from_row, from_col, moved_piece = pieces_removed[0]
-        to_row, to_col, arrived_piece = pieces_added[0]
-        captured_piece = None
-        
-        # Verify it's the same piece type and color (basic sanity check)
-        if (moved_piece.type != arrived_piece.type or 
-            moved_piece.colour != arrived_piece.colour):
-            return {
-                'valid': False,
-                'from': None,
-                'to': None,
-                'piece': None,
-                'captured': None,
-                'is_legal': False,
-                'error': 'Piece type/color mismatch'
-            }
-    
-    elif len(pieces_added) == 1 and len(pieces_removed) == 2:
-        # Capture move: two squares emptied, one square filled
-        to_row, to_col, arrived_piece = pieces_added[0]
-        
-        # One of the removed pieces should be at the destination (captured)
-        # The other should be the piece that moved
-        captured_piece = None
-        moved_piece = None
-        from_row, from_col = None, None
-        
-        for r, c, piece in pieces_removed:
-            if r == to_row and c == to_col:
-                # This piece was at the destination - it was captured
-                captured_piece = piece
-            else:
-                # This piece moved away from its square
-                moved_piece = piece
-                from_row, from_col = r, c
-        
-        if moved_piece is None or captured_piece is None:
-            return {
-                'valid': False,
-                'from': None,
-                'to': None,
-                'piece': None,
-                'captured': None,
-                'is_legal': False,
-                'error': 'Invalid capture pattern'
-            }
-        
-        # Verify the moving piece matches the arrived piece
-        if (moved_piece.type != arrived_piece.type or 
-            moved_piece.colour != arrived_piece.colour):
-            return {
-                'valid': False,
-                'from': None,
-                'to': None,
-                'piece': None,
-                'captured': None,
-                'is_legal': False,
-                'error': 'Piece type/color mismatch in capture'
-            }
-    
-    else:
-        return {
-            'valid': False,
-            'from': None,
-            'to': None,
-            'piece': None,
-            'captured': None,
-            'is_legal': False,
-            'error': f'Invalid move: {len(pieces_removed)} removed, {len(pieces_added)} added'
-        }
-    
-    # Check if move is legal using allowable_moves
-    try:
-        allowable_moves = get_allowable_move(prev_board, from_row, from_col)
-        is_legal = [to_row, to_col] in allowable_moves
-    except Exception as e:
-        is_legal = False
-        error = f'Error checking legality: {str(e)}'
-    
-    return {
-        'valid': True,
-        'from': (from_row, from_col),
-        'to': (to_row, to_col),
-        'piece': moved_piece,
-        'captured': captured_piece,
-        'is_legal': is_legal,
-        'error': None if is_legal else 'Illegal move'
-    }
-
 
 def get_allowable_move(board, row, col):
-    """Wrapper function that passes board to allowable move calculations"""
+    """
+    Wrapper function that passes board to allowable move calculations
+    """
+    
     piece = board[row][col]
 
     if piece is None:
@@ -194,7 +57,10 @@ def get_allowable_move(board, row, col):
 
 
 def get_allowable_move_pawn(board, piece, row, col, multiplier):
-    """Pawn movement with board parameter"""
+    """
+    Pawn movement with board parameter
+    """
+    
     possible_moves = [
         [row+1*multiplier, col],
         [row+2*multiplier, col],
@@ -226,7 +92,10 @@ def get_allowable_move_pawn(board, piece, row, col, multiplier):
 
 
 def get_allowable_move_castle(board, piece, row, col):
-    """Castle/Rook movement with board parameter"""
+    """
+    Castle/Rook movement with board parameter
+    """
+    
     allowable_moves = [[row, col]]
 
     directions = [(1, 0), (-1, 0), (0, 1), (0, -1)]
@@ -250,7 +119,10 @@ def get_allowable_move_castle(board, piece, row, col):
 
 
 def get_allowable_move_knight(board, piece, row, col):
-    """Knight movement with board parameter"""
+    """
+    Knight movement with board parameter
+    """
+    
     allowable_moves = [[row, col]]
 
     possible_moves = [
@@ -270,7 +142,10 @@ def get_allowable_move_knight(board, piece, row, col):
 
 
 def get_allowable_move_bishop(board, piece, row, col):
-    """Bishop movement with board parameter"""
+    """
+    Bishop movement with board parameter
+    """
+    
     allowable_moves = [[row, col]]
 
     directions = [(1, 1), (1, -1), (-1, 1), (-1, -1)]
@@ -294,7 +169,10 @@ def get_allowable_move_bishop(board, piece, row, col):
 
 
 def get_squares_attacked_by_opponent(board, colour):
-    """Get all squares attacked by opponent with board parameter"""
+    """
+    Get all squares attacked by opponent with board parameter
+    """
+    
     not_allowable_moves = []
 
     for r in range(len(board)):
@@ -309,16 +187,11 @@ def get_squares_attacked_by_opponent(board, colour):
     
     return not_allowable_moves
 
-def check_in_check(board, row, col):
-    king = board[row][col]
-    
-    if [row, col] in get_squares_attacked_by_opponent(king.colour):
-        return True
-    else:
-        return False
-
 def get_allowable_move_king(board, piece, row, col, multiplier):
-    """King movement with board parameter"""
+    """
+    King movement with board parameter
+    """
+    
     allowable_moves = [[row, col]]
 
     directions = [
@@ -345,5 +218,8 @@ def get_allowable_move_king(board, piece, row, col, multiplier):
 
 
 def in_bounds(r, c):
-    """Check if position is within board bounds"""
+    """
+    Check if position is within board bounds
+    """
+    
     return 0 <= r < 8 and 0 <= c < 8
