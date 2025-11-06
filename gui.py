@@ -1,6 +1,5 @@
 import pygame
 import sys
-from allowable_moves import initial_state
 
 # Initialize Pygame
 pygame.init()
@@ -17,6 +16,8 @@ WHITE = (255, 255, 255)
 BUTTON_COLOR = (70, 130, 180)  # Steel blue
 BUTTON_HOVER_COLOR = (100, 149, 237)  # Cornflower blue
 BUTTON_TEXT_COLOR = WHITE
+GREEN_HIGHLIGHT = (0, 255, 0, 100)  # Valid move - transparent green
+RED_HIGHLIGHT = (255, 0, 0, 100)    # Invalid move - transparent red
 
 # Grid settings
 ROWS = 8
@@ -35,6 +36,9 @@ font = pygame.font.Font(None, 36)
 
 # Setup mode flag
 setup_mode = False
+
+# Move highlight info
+last_move_info = None  # Will store {'from': (row, col), 'to': (row, col), 'valid': bool}
 
 class Button:
     def __init__(self, x, y, width, height, text, color, hover_color, text_color):
@@ -99,6 +103,51 @@ def draw_grid():
             pygame.draw.rect(screen, color, (x, y, CELL_WIDTH, CELL_HEIGHT))
 
 
+def draw_move_highlights():
+    """Draw highlights for the last move (green for valid, red for invalid)"""
+    global last_move_info
+    
+    if last_move_info is None:
+        return
+    
+    from_pos = last_move_info.get('from')
+    to_pos = last_move_info.get('to')
+    is_valid = last_move_info.get('valid', False)
+    
+    # Choose color based on validity
+    if is_valid:
+        highlight_color = (0, 200, 0)  # Green for valid
+        alpha = 120
+    else:
+        highlight_color = (200, 0, 0)  # Red for invalid
+        alpha = 120
+    
+    # Create a transparent surface for highlights
+    highlight_surface = pygame.Surface((CELL_WIDTH, CELL_HEIGHT))
+    highlight_surface.set_alpha(alpha)
+    highlight_surface.fill(highlight_color)
+    
+    # Draw "from" square
+    if from_pos:
+        row, col = from_pos
+        x = col * CELL_WIDTH
+        y = row * CELL_HEIGHT
+        screen.blit(highlight_surface, (x, y))
+        
+        # Draw border
+        pygame.draw.rect(screen, highlight_color, (x, y, CELL_WIDTH, CELL_HEIGHT), 4)
+    
+    # Draw "to" square
+    if to_pos:
+        row, col = to_pos
+        x = col * CELL_WIDTH
+        y = row * CELL_HEIGHT
+        screen.blit(highlight_surface, (x, y))
+        
+        # Draw thicker border for destination
+        pygame.draw.rect(screen, highlight_color, (x, y, CELL_WIDTH, CELL_HEIGHT), 6)
+
+
 def draw_pieces(board):
     """Draw pieces on the board based on the initial state"""
     for row in range(ROWS):
@@ -143,6 +192,29 @@ CHANGED = 5
 UPDATE_BOARD = 6
 
 
+def set_last_move(from_pos, to_pos, is_valid):
+    """
+    Set the last move to be highlighted.
+    
+    Args:
+        from_pos: (row, col) tuple for source square
+        to_pos: (row, col) tuple for destination square
+        is_valid: bool indicating if move was valid
+    """
+    global last_move_info
+    last_move_info = {
+        'from': from_pos,
+        'to': to_pos,
+        'valid': is_valid
+    }
+
+
+def clear_last_move():
+    """Clear the move highlight."""
+    global last_move_info
+    last_move_info = None
+
+
 def do_gui(board_state, prev_board_state, current_state):
     """
     Run one frame of the GUI.
@@ -178,6 +250,9 @@ def do_gui(board_state, prev_board_state, current_state):
     
     # Draw the grid
     draw_grid()
+    
+    # Draw move highlights (before pieces so pieces are on top)
+    draw_move_highlights()
     
     # Draw pieces
     draw_pieces(board_state)

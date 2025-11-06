@@ -11,31 +11,192 @@ class Piece:
         self.id = Piece.unique_id
         Piece.unique_id += 1
 
-
-# this board variable will come from the detector, this example just flows through some things
-board = None
-
-# This is the initial state of the board
 initial_state = [
-    [Piece("castle", "white"), Piece("knight", "white"), Piece("bishop", "white"), Piece("queen", "white"), Piece("king", "white"), Piece("bishop", "white"), Piece("knight", "white"), Piece("castle", "white")],
-    [Piece("pawn", "white"), Piece("pawn", "white"), Piece("pawn", "white"), Piece("pawn", "white"), Piece("pawn", "white"), Piece("pawn", "white"), Piece("pawn", "white"), Piece("pawn", "white")],
-    [None, None, None, None, None, None, None, None],
-    [None, None, None, None, None, None, None, None],
-    [None, None, None, None, None, None, None, None],
-    [None, None, None, None, None, None, None, None],
-    [Piece("pawn", "black"), Piece("pawn", "black"), Piece("pawn", "black"), Piece("pawn", "black"), Piece("pawn", "black"), Piece("pawn", "black"), Piece("pawn", "black"), Piece("pawn", "black")],
-    [Piece("castle", "black"), Piece("knight", "black"), Piece("bishop", "black"), Piece("queen", "black"), Piece("king", "black"), Piece("bishop", "black"), Piece("knight", "black"), Piece("castle", "black")]
+    [Piece("castle", "white"), Piece("knight", "white"), Piece("bishop", "white"), Piece("queen", "white"), 
+     Piece("king", "white"), Piece("bishop", "white"), Piece("knight", "white"), Piece("castle", "white")],
+    [Piece("pawn", "white")] * 8,
+    [None] * 8,
+    [None] * 8,
+    [None] * 8,
+    [None] * 8,
+    [Piece("pawn", "black")] * 8,
+    [Piece("castle", "black"), Piece("knight", "black"), Piece("bishop", "black"), Piece("queen", "black"), 
+     Piece("king", "black"), Piece("bishop", "black"), Piece("knight", "black"), Piece("castle", "black")]
 ]
 
-# Testing now will just use initial state
-board = initial_state
+def detect_move(prev_board, current_board):
+    """
+    Detect which piece moved by comparing board states.
+    
+    Returns:
+        dict: {
+            'valid': bool,
+            'from': (row, col) or None,
+            'to': (row, col) or None,
+            'piece': Piece object or None,
+            'captured': Piece object or None,
+            'is_legal': bool,
+            'error': str or None
+        }
+    """
+    if prev_board is None or current_board is None:
+        return {
+            'valid': False,
+            'from': None,
+            'to': None,
+            'piece': None,
+            'captured': None,
+            'is_legal': False,
+            'error': 'Invalid board state'
+        }
+    
+    # Find all differences
+    pieces_removed = []  # (row, col, piece)
+    pieces_added = []    # (row, col, piece)
+    
+    for row in range(8):
+        for col in range(8):
+            prev_piece = prev_board[row][col]
+            curr_piece = current_board[row][col]
+            
+            prev_occupied = prev_piece is not None
+            curr_occupied = curr_piece is not None
+            
+            # Piece removed
+            if prev_occupied and not curr_occupied:
+                pieces_removed.append((row, col, prev_piece))
+            
+            # Piece added (and wasn't there before)
+            elif not prev_occupied and curr_occupied:
+                pieces_added.append((row, col, curr_piece))
+            
+            # Piece changed (capture case)
+            elif prev_occupied and curr_occupied:
+                if prev_piece.id != curr_piece.id:
+                    pieces_removed.append((row, col, prev_piece))
+                    pieces_added.append((row, col, curr_piece))
+    
+    # Validate move pattern
+    # Normal move: 1 removed, 1 added
+    # Capture: 2 removed (one piece + captured piece), 1 added
+    
+    if len(pieces_added) == 1 and len(pieces_removed) == 1:
+        # Normal move
+        from_row, from_col, moved_piece = pieces_removed[0]
+        to_row, to_col, arrived_piece = pieces_added[0]
+        captured_piece = None
+        
+        # Verify it's the same piece (by type and color)
+        if (moved_piece.type != arrived_piece.type or 
+            moved_piece.colour != arrived_piece.colour):
+            return {
+                'valid': False,
+                'from': None,
+                'to': None,
+                'piece': None,
+                'captured': None,
+                'is_legal': False,
+                'error': 'Piece type/color mismatch'
+            }
+    
+    elif len(pieces_added) == 1 and len(pieces_removed) == 2:
+        # Capture move
+        to_row, to_col, arrived_piece = pieces_added[0]
+        
+        # One of the removed pieces should be at the destination (captured)
+        # The other should be the piece that moved
+        captured_piece = None
+        moved_piece = None
+        from_row, from_col = None, None
+        
+        for r, c, piece in pieces_removed:
+            if r == to_row and c == to_col:
+                captured_piece = piece
+            else:
+                moved_piece = piece
+                from_row, from_col = r, c
+        
+        if moved_piece is None or captured_piece is None:
+            return {
+                'valid': False,
+                'from': None,
+                'to': None,
+                'piece': None,
+                'captured': None,
+                'is_legal': False,
+                'error': 'Invalid capture pattern'
+            }
+        
+        # Verify piece types match
+        if (moved_piece.type != arrived_piece.type or 
+            moved_piece.colour != arrived_piece.colour):
+            return {
+                'valid': False,
+                'from': None,
+                'to': None,
+                'piece': None,
+                'captured': None,
+                'is_legal': False,
+                'error': 'Piece type/color mismatch in capture'
+            }
+    
+    else:
+        return {
+            'valid': False,
+            'from': None,
+            'to': None,
+            'piece': None,
+            'captured': None,
+            'is_legal': False,
+            'error': f'Invalid move: {len(pieces_removed)} removed, {len(pieces_added)} added'
+        }
+    
+    # Check if move is legal using allowable_moves
+    # Pass prev_board directly to get_allowable_move
+    try:
+        allowable_moves = get_allowable_move(prev_board, from_row, from_col)
+        is_legal = [to_row, to_col] in allowable_moves
+    except Exception as e:
+        is_legal = False
+        error = f'Error checking legality: {str(e)}'
+    
+    return {
+        'valid': True,
+        'from': (from_row, from_col),
+        'to': (row, to_col),
+        'piece': moved_piece,
+        'captured': captured_piece,
+        'is_legal': is_legal,
+        'error': None if is_legal else 'Illegal move'
+    }
 
-def in_bounds(r, c):
-    return 0 <= r < 8 and 0 <= c < 8
 
-### PAWN ###
-# Returns locations that the pawn can go to
-def get_allowable_move_pawn(piece, row, col, multiplier):
+def get_allowable_move(board, row, col):
+    """Wrapper function that passes board to allowable move calculations"""
+    piece = board[row][col]
+
+    if piece is None:
+        return []
+
+    multiplier = -1 if piece.colour == "black" else 1
+
+    if piece.type == "pawn":
+        return get_allowable_move_pawn(board, piece, row, col, multiplier)
+    if piece.type == "castle":
+        return get_allowable_move_castle(board, piece, row, col)
+    if piece.type == "bishop":
+        return get_allowable_move_bishop(board, piece, row, col)
+    if piece.type == "queen":
+        return (get_allowable_move_castle(board, piece, row, col) + 
+                get_allowable_move_bishop(board, piece, row, col))
+    if piece.type == "knight":
+        return get_allowable_move_knight(board, piece, row, col)
+    if piece.type == "king":
+        return get_allowable_move_king(board, piece, row, col, multiplier)
+
+
+def get_allowable_move_pawn(board, piece, row, col, multiplier):
+    """Pawn movement with board parameter"""
     possible_moves = [
         [row+1*multiplier, col],
         [row+2*multiplier, col],
@@ -55,25 +216,22 @@ def get_allowable_move_pawn(piece, row, col, multiplier):
 
     r, c = possible_moves[2]
     if in_bounds(r, c):
-        if board[r][c] != None and board[r][c].colour != piece.colour:
+        if board[r][c] is not None and board[r][c].colour != piece.colour:
             allowable_moves.append(possible_moves[2])
 
     r, c = possible_moves[3]
     if in_bounds(r, c):
-        if board[r][c] != None and board[r][c].colour != piece.colour:
+        if board[r][c] is not None and board[r][c].colour != piece.colour:
             allowable_moves.append(possible_moves[3])
     
     return allowable_moves
 
-def get_allowable_move_castle(piece, row, col):
+
+def get_allowable_move_castle(board, piece, row, col):
+    """Castle/Rook movement with board parameter"""
     allowable_moves = [[row, col]]
 
-    directions = [
-        (1, 0),   # down
-        (-1, 0),  # up
-        (0, 1),   # right
-        (0, -1)   # left
-    ]
+    directions = [(1, 0), (-1, 0), (0, 1), (0, -1)]
 
     for dr, dc in directions:
         r = row + dr
@@ -84,26 +242,22 @@ def get_allowable_move_castle(piece, row, col):
                 allowable_moves.append([r, c])
             elif target.colour != piece.colour:
                 allowable_moves.append([r, c])
-                break  # can't go beyond capture
+                break
             else:
-                break  # blocked by own piece
+                break
             r += dr
             c += dc
 
     return allowable_moves
 
-def get_allowable_move_knight(piece, row, col):
+
+def get_allowable_move_knight(board, piece, row, col):
+    """Knight movement with board parameter"""
     allowable_moves = [[row, col]]
 
     possible_moves = [
-        [1, 2], 
-        [1, -2], 
-        [-1, 2], 
-        [-1, -2], 
-        [2, 1], 
-        [2, -1], 
-        [-2, 1], 
-        [-2, -1]
+        [1, 2], [1, -2], [-1, 2], [-1, -2],
+        [2, 1], [2, -1], [-2, 1], [-2, -1]
     ]
 
     for dr, dc in possible_moves:
@@ -116,15 +270,12 @@ def get_allowable_move_knight(piece, row, col):
 
     return allowable_moves
 
-def get_allowable_move_bishop(piece, row, col):
+
+def get_allowable_move_bishop(board, piece, row, col):
+    """Bishop movement with board parameter"""
     allowable_moves = [[row, col]]
 
-    directions = [
-        (1, 1), 
-        (1, -1), 
-        (-1, 1),   
-        (-1, -1)   
-    ]
+    directions = [(1, 1), (1, -1), (-1, 1), (-1, -1)]
 
     for dr, dc in directions:
         r = row + dr
@@ -135,15 +286,17 @@ def get_allowable_move_bishop(piece, row, col):
                 allowable_moves.append([r, c])
             elif target.colour != piece.colour:
                 allowable_moves.append([r, c])
-                break  # can't go beyond capture
+                break
             else:
-                break  # blocked by own piece
+                break
             r += dr
             c += dc
 
     return allowable_moves
 
-def get_squares_attacked_by_opponent(colour):
+
+def get_squares_attacked_by_opponent(board, colour):
+    """Get all squares attacked by opponent with board parameter"""
     not_allowable_moves = []
 
     for r in range(len(board)):
@@ -154,26 +307,21 @@ def get_squares_attacked_by_opponent(colour):
             if target is None or target.type == "king":
                 continue
             if colour != target.colour:
-                not_allowable_moves.extend(get_allowable_move(r, c))
+                not_allowable_moves.extend(get_allowable_move(board, r, c))
     
     return not_allowable_moves
 
 
-def get_allowable_move_king(piece, row, col, multiplier):
+def get_allowable_move_king(board, piece, row, col, multiplier):
+    """King movement with board parameter"""
     allowable_moves = [[row, col]]
 
     directions = [
-        (1, 0),   # down
-        (-1, 0),  # up
-        (0, 1),   # right
-        (0, -1),   # left
-        (1, 1), 
-        (1, -1), 
-        (-1, 1),   
-        (-1, -1)   
+        (1, 0), (-1, 0), (0, 1), (0, -1),
+        (1, 1), (1, -1), (-1, 1), (-1, -1)
     ]
 
-    not_allowable_moves = get_squares_attacked_by_opponent(piece.colour)
+    not_allowable_moves = get_squares_attacked_by_opponent(board, piece.colour)
 
     for dr, dc in directions:
         r = row + dr
@@ -181,10 +329,8 @@ def get_allowable_move_king(piece, row, col, multiplier):
         if not in_bounds(r, c):
             continue
         target = board[r][c]
-        # Checking that the move does not put the king in check
         if [r, c] in not_allowable_moves:
             continue
-        # Getting moves that are allowed
         if target is None:
             allowable_moves.append([r, c])
         elif target.colour != piece.colour:
@@ -192,44 +338,7 @@ def get_allowable_move_king(piece, row, col, multiplier):
     
     return allowable_moves
 
-def check_in_check(row, col):
-    king = board[row][col]
-    
-    if [row, col] in get_squares_attacked_by_opponent(king.colour):
-        return True
-    else:
-        return False
 
-
-def get_allowable_move(row, col):
-    piece = board[row][col]
-
-    if piece is None:
-        return []
-
-    if piece.colour == "black":
-        multiplier = -1
-    if piece.colour == "white":
-        multiplier = 1
-
-    if piece.type == "pawn":
-        return get_allowable_move_pawn(piece, row, col, multiplier)
-    if piece.type == "castle":
-        return get_allowable_move_castle(piece, row, col)
-    if piece.type == "bishop":
-        return get_allowable_move_bishop(piece, row, col)
-    if piece.type == "queen":
-        return get_allowable_move_castle(piece, row, col) + get_allowable_move_bishop(piece, row, col)
-    if piece.type == "knight":
-        return get_allowable_move_knight(piece, row, col)
-    if piece.type == "king":
-        return get_allowable_move_king(piece, row, col, multiplier)
-
-def move_piece(new_row, new_col, initial_row, initial_col, allowable_move):
-    if [new_row, new_col] not in allowable_move:
-        print("Cannot move here")
-    else:
-        board[new_row][new_col] = board[initial_row][initial_col]
-        board[initial_row][initial_col] = None
-        if board[new_row][new_col].type == "pawn":
-            board[new_row][new_col].first_move = False
+def in_bounds(r, c):
+    """Check if position is within board bounds"""
+    return 0 <= r < 8 and 0 <= c < 8
