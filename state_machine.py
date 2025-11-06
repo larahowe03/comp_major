@@ -198,7 +198,7 @@ while running:
         # unmargined = crop_rows(warped)
                 
         # Detect pieces
-        final_boxes, contour_annotated, colour_annotated = chess_detection.detect_pieces(warp_margined)
+        contour_boxes, colour_boxes, contour_annotated, colour_annotated = chess_detection.detect_pieces(warp_margined)
                 
         cv2.imshow('contour_annotated', contour_annotated)
         cv2.imshow('colour_annotated', colour_annotated)
@@ -211,7 +211,7 @@ while running:
         cv2.imshow('contour_cropped', contour_cropped)
         cv2.imshow('colour_cropped', colour_cropped)
 
-        get_location(final_boxes)
+        # get_location(final_boxes)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         running = False

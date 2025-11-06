@@ -385,12 +385,6 @@ def ensemble_predictions(contour_result, colour_result, iou_threshold=0.5, conf_
 
 def ensemble_model(contoured_warp, coloured_warp):
     """Run both models and ensemble their predictions."""
-    contour_predictions = contour_model_prediction(contoured_warp)
-    colour_predictions = colour_model_prediction(coloured_warp)
-    
-    contour_annotated = contour_predictions.plot()
-            
-    colour_annotated = colour_predictions.plot()
     # debug_ensemble_analysis(contour_predictions, colour_predictions, iou_threshold=0.5)
     
     # ensemble_result = ensemble_predictions(
@@ -487,122 +481,30 @@ def detect_pieces(warped):
     # Prepare images
     contoured_warp = preprocess_image(warped)
     coloured_warp = warped
-
-    # Get ensemble predictions
-    contour_predictions, colour_predictions, contour_annotated, colour_annotated = ensemble_model(contoured_warp, coloured_warp)
+    
+    contour_predictions = contour_model_prediction(contoured_warp)
+    colour_predictions = colour_model_prediction(coloured_warp)
     
     # Apply stabilization
     stabilized_contour = stabilizer.update(contour_predictions)
     stabilized_colour = stabilizer.update(colour_predictions)
     
+    contour_annotated = stabilized_contour.plot()
+    colour_annotated = stabilized_colour.plot()
+
     # Extract all boxes from contour model
     contour_boxes = []
     for box in stabilized_contour.boxes:
         x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-        confidence = box.conf[0].cpu().numpy()
-        class_id = int(box.cls[0].cpu().numpy())
-        area = (x2 - x1) * (y2 - y1)
-        
-        contour_boxes.append({
-            'box': [float(x1), float(y1), float(x2), float(y2)],
-            'bottom': float(y2),
-            'confidence': float(confidence),
-            'class_id': class_id,
-            'class_name': stabilized_contour.names[class_id],
-            'area': area,
-            'source': 'contour'
-        })
+        contour_boxes.append([float(x1), float(y1), float(x2), float(y2)])
     
     # Extract all boxes from colour model
     colour_boxes = []
     for box in stabilized_colour.boxes:
-        x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-        confidence = box.conf[0].cpu().numpy()
-        class_id = int(box.cls[0].cpu().numpy())
-        
-        colour_boxes.append({
-            'box': [float(x1), float(y1), float(x2), float(y2)],
-            'confidence': float(confidence),
-            'class_id': class_id,
-            'class_name': stabilized_colour.names[class_id],
-            'source': 'colour'
-        })
+        x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()        
+        colour_boxes.append([float(x1), float(y1), float(x2), float(y2)])
     
-    # Match contour boxes with colour boxes based on overlap
-    final_boxes = []
-    matched_colour_indices = set()
-    
-    overlap_threshold = 0.5  # 50% overlap required
-    
-    for contour_box in contour_boxes:
-        cx1, cy1, cx2, cy2 = contour_box['box']
-        contour_area = contour_box['area']
-        best_match = None
-        best_overlap = 0
-        best_colour_idx = None
-        
-        # Find best overlapping colour box
-        for colour_idx, colour_box in enumerate(colour_boxes):
-            if colour_idx in matched_colour_indices:
-                continue
-            
-            col_x1, col_y1, col_x2, col_y2 = colour_box['box']
-            
-            # Calculate intersection
-            inter_x1 = max(cx1, col_x1)
-            inter_y1 = max(cy1, col_y1)
-            inter_x2 = min(cx2, col_x2)
-            inter_y2 = min(cy2, col_y2)
-            
-            if inter_x2 > inter_x1 and inter_y2 > inter_y1:
-                intersection_area = (inter_x2 - inter_x1) * (inter_y2 - inter_y1)
-                # Calculate overlap relative to contour box area
-                overlap_ratio = intersection_area / contour_area
-                
-                if overlap_ratio > best_overlap:
-                    best_overlap = overlap_ratio
-                    best_match = colour_box
-                    best_colour_idx = colour_idx
-        
-        # If good overlap found, use colour prediction label
-        if best_overlap >= overlap_threshold and best_match is not None:
-            final_box = {
-                'box': contour_box['box'],
-                'bottom': contour_box['bottom'],
-                'confidence': (contour_box['confidence'] + best_match['confidence']) / 2,
-                'class_id': best_match['class_id'],
-                'class_name': best_match['class_name'],
-                'overlap_ratio': best_overlap,
-                'matched': True
-            }
-            matched_colour_indices.add(best_colour_idx)
-        else:
-            # Use contour prediction if no good colour match
-            final_box = {
-                'box': contour_box['box'],
-                'bottom': contour_box['bottom'],
-                'confidence': contour_box['confidence'],
-                'class_id': contour_box['class_id'],
-                'class_name': contour_box['class_name'],
-                'overlap_ratio': best_overlap if best_overlap > 0 else None,
-                'matched': False
-            }
-        
-        final_boxes.append(final_box)
-    
-    # Add unmatched colour boxes (optional, in case colour detected something contour missed)
-    for colour_idx, colour_box in enumerate(colour_boxes):
-        if colour_idx not in matched_colour_indices:
-            final_boxes.append({
-                'box': colour_box['box'],
-                'confidence': colour_box['confidence'],
-                'class_id': colour_box['class_id'],
-                'class_name': colour_box['class_name'],
-                'matched': False,
-                'source': 'colour_only'
-            })
-    
-    return final_boxes, contour_annotated, colour_annotated
+    return contour_boxes, colour_boxes, contour_annotated, colour_annotated
 
 
 def cleanup_camera():
