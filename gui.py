@@ -204,17 +204,6 @@ def draw_king_check_status():
     screen.blit(king_surface, (x, y))
     pygame.draw.rect(screen, (255, 0, 0), (x, y, CELL_WIDTH, CELL_HEIGHT), 5)
 
-    # --- Highlight attackers in blue ---
-    for attacker in attackers_info:
-        r, c = attacker
-        ax = c * CELL_WIDTH
-        ay = r * CELL_HEIGHT
-        atk_surface = pygame.Surface((CELL_WIDTH, CELL_HEIGHT))
-        atk_surface.set_alpha(140)
-        atk_surface.fill((0, 0, 255))  # Blue for attacking pieces
-        screen.blit(atk_surface, (ax, ay))
-        pygame.draw.rect(screen, (0, 0, 255), (ax, ay, CELL_WIDTH, CELL_HEIGHT), 4)
-
     # --- Draw the text message ---
     if is_checkmate:
         msg = f"{king_in_check_info['colour'].capitalize()} King Checkmate!"
