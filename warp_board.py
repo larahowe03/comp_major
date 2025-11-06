@@ -95,7 +95,7 @@ import numpy as np
 
 # Main: hybrid detection with 20-pixel margin
 # ------------------------
-def detect_board(img, board_size=800):
+def detect_board(img, board_size=800, margin=60):
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     blur = cv2.GaussianBlur(gray, (5,5), 0)
@@ -109,7 +109,7 @@ def detect_board(img, board_size=800):
     
     if len(contours) == 0:
         print("No contours found")
-        return img, img
+        return img, img, img
     
     contours = sorted(contours, key=cv2.contourArea, reverse=True)
 
@@ -214,16 +214,13 @@ def detect_board(img, board_size=800):
     # Final fallback
     if pts_src is None:
         print("All methods failed")
-        return None, None
+        return None, None, None
 
-    # Add 20-pixel margin by expanding source points outward
-    margin = 80 
-    
     # Calculate center of the board
     center_x = np.mean(pts_src[:, 0])
     center_y = np.mean(pts_src[:, 1])
     
-    # Expand each corner point away from center
+    # Expand each corner point away from center for margined version
     expanded_pts_src = []
     for pt in pts_src:
         # Vector from center to corner
@@ -231,8 +228,6 @@ def detect_board(img, board_size=800):
         dy = pt[1] - center_y
         
         # Calculate expansion factor based on margin
-        # We want to move the point outward by 'margin' pixels in the warped space
-        # Since board_size is the final size, margin/board_size gives us the ratio
         expansion_ratio = 1 + (2 * margin / board_size)
         
         # Expand the point
@@ -243,22 +238,30 @@ def detect_board(img, board_size=800):
     
     expanded_pts_src = np.float32(expanded_pts_src)
     
-    # Warp perspective with expanded source points to capture extra area
-    pts_dst = np.float32([[0,0],[board_size,0],[board_size,board_size],[0,board_size]])
-    M = cv2.getPerspectiveTransform(expanded_pts_src, pts_dst)
-    warp = cv2.warpPerspective(img_rgb, M, (board_size, board_size))
+    # Warp with margin (larger board with extra space)
+    board_size_with_margin = board_size + 2 * margin
+    pts_dst_margined = np.float32([[0, 0], [board_size_with_margin, 0], 
+                                   [board_size_with_margin, board_size_with_margin], 
+                                   [0, board_size_with_margin]])
+    M_margined = cv2.getPerspectiveTransform(expanded_pts_src, pts_dst_margined)
+    warp_margined = cv2.warpPerspective(img_rgb, M_margined, (board_size_with_margin, board_size_with_margin))
+    
+    # Warp without margin (just the board, no extra space)
+    pts_dst_unmargined = np.float32([[0, 0], [board_size, 0], [board_size, board_size], [0, board_size]])
+    M_unmargined = cv2.getPerspectiveTransform(pts_src, pts_dst_unmargined)
+    warp_unmargined = cv2.warpPerspective(img_rgb, M_unmargined, (board_size, board_size))
 
-    return warp, contoured_img, pts_src
+    return warp_margined, warp_unmargined, contoured_img, pts_src
 
 
 def process_chess_image(img):
     try:
-        img, contoured_img, pts_src = detect_board(img)
+        warp_margined, warp_unmargined, contoured_img, pts_src = detect_board(img)
     except:
         contoured_img = img
         pts_src = None
         pass
 
-    return img, contoured_img, pts_src
+    return warp_margined, warp_unmargined, contoured_img, pts_src
 
 

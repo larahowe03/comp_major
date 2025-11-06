@@ -81,7 +81,7 @@ def get_chess_notation(row, col, flip_board=False):
     
     return files[col] + ranks[row]
 
-def get_cell_location(unmargined_warp, boxes, margin=60, top_margin_extra=20, min_confidence=0.5):
+def get_cell_location(unmargined_warp, boxes, margin=80, min_confidence=0.5):
       
     # Get unmargined board dimensions
     unmargined_height, unmargined_width = unmargined_warp.shape[:2]
@@ -106,19 +106,27 @@ def get_cell_location(unmargined_warp, boxes, margin=60, top_margin_extra=20, mi
         # Subtract left margin from x
         # Subtract top margin (margin + top_margin_extra) from y
         adjusted_x = bottom_x - margin
-        adjusted_y = bottom_y - (margin + top_margin_extra)
+        adjusted_y = bottom_y - (margin)
         
         # Check if outside unmargined area
         if adjusted_x < 0 or adjusted_y < 0 or \
            adjusted_x > unmargined_width or adjusted_y > unmargined_height:
             continue  # Skip pieces outside the playable area
         
-        # Calculate cell position in unmargined space
+        # Find column: closest vertical boundary to the right
         col = int(adjusted_x / square_width)
-        row = int(adjusted_y / square_height)
-        
-        # Clamp to valid range
+        col_remainder = adjusted_x % square_width
+        # If closer to right boundary, move to next column
+        if col_remainder > square_width / 2 and col < 7:
+            col += 1
         col = max(0, min(7, col))
+        
+        # Find row: closest horizontal boundary below, then assign to square above
+        row = int(adjusted_y / square_height)
+        row_remainder = adjusted_y % square_height
+        # If closer to bottom boundary, move to next row
+        if row_remainder > square_height / 2 and row < 7:
+            row += 1
         row = max(0, min(7, row))
         
         chess_pos = get_chess_notation(row, col)
@@ -134,14 +142,9 @@ def get_cell_location(unmargined_warp, boxes, margin=60, top_margin_extra=20, mi
     
     return pieces_with_positions
 
-def crop_rows(warp_img, margin = 60):
-    h, w = warp_img.shape[:2]
-    unmargined_img = warp_img[margin+20:h-margin, margin:w-margin]
-
-    bottom_row = unmargined_img[h-180:, :]
-    second_bottom_row = unmargined_img[h-280:h-140, :]
-    # return bottom_row, second_bottom_row
-    return unmargined_img
+def get_location(final_boxes):
+    NUM_SQUARES = 8
+    
 
 
 board_state = [
@@ -169,15 +172,14 @@ warped_board = None
 
 pts_src_buffer = []
 
-MARGIN = 60
-TOP_MARGIN_EXTRA = 20
+MARGIN = 80
 
 while running:
     # Always update GUI
     running = gui.do_gui(board_state)
     
     # Get current frame from camera
-    undistorted, warped, pts_src = chess_detection.get_current_frame()
+    warp_margined, warp_unmargined, contoured_img, pts_src = chess_detection.get_current_frame()
 
     pts_src_buffer.append(pts_src)
 
@@ -188,69 +190,29 @@ while running:
 
     print("is_stable", is_stable)
     print("current_state", current_state)
-    
-    # Show camera feed if available
-    if undistorted is not None:
-        cv2.imshow('Camera Feed', undistorted)
-    
-    if warped is not None:
-        warped_board = warped
-        cv2.imshow('Warped Board', warped)
+        
+    if warp_margined is not None:
+        cv2.imshow('warp_margined', warp_margined)
+        cv2.imshow('warp_unmargined', warp_unmargined)
         # bottom_row, second_bottom_row = crop_rows(warped)
         # unmargined = crop_rows(warped)
-        
-        h, w = warped.shape[:2]
-        unmargined = warped[MARGIN+TOP_MARGIN_EXTRA:h-MARGIN, MARGIN:w-MARGIN]
-        
+                
         # Detect pieces
-        detection_result = chess_detection.detect_pieces(warped)
-        
-        # unmargined_result = chess_detection.detect_pieces(unmargined)
-        # second_bottom_row_detection_result = chess_detection.detect_pieces(second_bottom_row)
-        
-        boxes_info = []
-        for box in detection_result.boxes:
-            x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-            boxes_info.append({
-                'box': [float(x1), float(y1), float(x2), float(y2)],
-                'bottom': float(y2),
-                'confidence': float(box.conf[0].cpu().numpy()),
-                'class_id': int(box.cls[0].cpu().numpy()),
-                'class_name': detection_result.names[int(box.cls[0].cpu().numpy())]
-            })
-            
-        if boxes_info:
-            pieces_with_positions = get_cell_location(
-                unmargined,  # Only used for dimensions
-                boxes_info,  # These are in margined coordinates
-                margin=MARGIN, 
-                top_margin_extra=TOP_MARGIN_EXTRA,
-                min_confidence=0.6
-            )
-            
-        if pieces_with_positions:
-            new_board_state = detections_to_board(pieces_with_positions)
-            moved_from, moved_to = diff_board(board_state, new_board_state)
+        final_boxes, contour_annotated, colour_annotated = chess_detection.detect_pieces(warp_margined)
+                
+        cv2.imshow('contour_annotated', contour_annotated)
+        cv2.imshow('colour_annotated', colour_annotated)
 
-            if moved_from and moved_to:
-                r1, c1, piece = moved_from
-                r2, c2, _ = moved_to
-                move_str = f"{piece.colour} {piece.type}: {get_chess_notation(r1, c1)} → {get_chess_notation(r2, c2)}"
-                print("♟ Detected move:", move_str)
+        h, w = colour_annotated.shape[:2]
 
-            # Replace the global board state
-            board_state = new_board_state
-            
-            # for piece in pieces_with_positions:
-            #     print(f"  {piece['class_name']} at {piece['position']} (conf: {piece['confidence']:.2f})")
-        
+        contour_cropped = contour_annotated[MARGIN:h-MARGIN, MARGIN:w-MARGIN]
+        colour_cropped = colour_annotated[MARGIN:h-MARGIN, MARGIN:w-MARGIN]
 
-        # Visualize detections
-        if detection_result is not None:
-            annotated = detection_result.plot()
-            cv2.imshow('Margined Frame', annotated)
-    
-    # Check for quit key
+        cv2.imshow('contour_cropped', contour_cropped)
+        cv2.imshow('colour_cropped', colour_cropped)
+
+        get_location(final_boxes)
+
     if cv2.waitKey(1) & 0xFF == ord('q'):
         running = False
     

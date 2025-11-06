@@ -174,106 +174,108 @@ def make_clean_dir(path):
         shutil.rmtree(path)
     path.mkdir(parents=True, exist_ok=True)
 
-for split in ["train", "val", "test"]:
-    make_clean_dir(output_dir / "images" / split)
-    make_clean_dir(output_dir / "labels" / split)
-    make_clean_dir(output_dir / "visualizations" / split)
+if __name__ == "__main__":
 
-# Get all class directories
-class_dirs = sorted([d for d in source_dir.iterdir() if d.is_dir()])
+    for split in ["train", "val", "test"]:
+        make_clean_dir(output_dir / "images" / split)
+        make_clean_dir(output_dir / "labels" / split)
+        make_clean_dir(output_dir / "visualizations" / split)
 
-# Extract second word from directory names (e.g., white_king -> king)
-class_names = sorted(list(set([d.name.split('_')[1] for d in class_dirs])))
-class_to_id = {name: i for i, name in enumerate(class_names)}
+    # Get all class directories
+    class_dirs = sorted([d for d in source_dir.iterdir() if d.is_dir()])
 
-print("Class mapping:")
-for name, idx in class_to_id.items():
-    print(f"  {idx}: {name}")
+    # Extract second word from directory names (e.g., white_king -> king)
+    class_names = sorted(list(set([d.name.split('_')[1] for d in class_dirs])))
+    class_to_id = {name: i for i, name in enumerate(class_names)}
 
-for class_dir in class_dirs:
-    # Extract the piece type (second word after underscore)
-    piece_type = class_dir.name.split('_')[1]
-    class_id = class_to_id[piece_type]
-    
-    images = [f for f in class_dir.glob("*.*") if f.suffix.lower() in [".jpg", ".jpeg", ".png"]]
-    random.shuffle(images)
+    print("Class mapping:")
+    for name, idx in class_to_id.items():
+        print(f"  {idx}: {name}")
 
-    n_total = len(images)
-    n_train = int(train_ratio * n_total)
-    n_val = int(val_ratio * n_total)
+    for class_dir in class_dirs:
+        # Extract the piece type (second word after underscore)
+        piece_type = class_dir.name.split('_')[1]
+        class_id = class_to_id[piece_type]
+        
+        images = [f for f in class_dir.glob("*.*") if f.suffix.lower() in [".jpg", ".jpeg", ".png"]]
+        random.shuffle(images)
 
-    splits = {
-        "train": images[:n_train],
-        "val": images[n_train:n_train + n_val],
-        "test": images[n_train + n_val:]
-    }
+        n_total = len(images)
+        n_train = int(train_ratio * n_total)
+        n_val = int(val_ratio * n_total)
 
-    for split_name, split_files in splits.items():
-        for img_path in split_files:
-            dest_img_dir = output_dir / "images" / split_name
-            dest_lbl_dir = output_dir / "labels" / split_name
-            dest_vis_dir = output_dir / "visualizations" / split_name
-            
-            dest_img_dir.mkdir(parents=True, exist_ok=True)
-            dest_lbl_dir.mkdir(parents=True, exist_ok=True)
-            dest_vis_dir.mkdir(parents=True, exist_ok=True)
+        splits = {
+            "train": images[:n_train],
+            "val": images[n_train:n_train + n_val],
+            "test": images[n_train + n_val:]
+        }
 
-            # Read original image
-            img = cv2.imread(str(img_path))
-            if img is None:
-                print(f"⚠️  Could not read {img_path.name}, skipping")
-                continue
-
-            # Detect bounding box on original image
-            bbox_result = detect_object_bbox(img_path)
-            
-            if bbox_result is None:
-                print(f"⚠️  Could not detect object in {img_path.name}, using default bbox")
-                yolo_bbox = (0.5, 0.65, 0.25, 0.45)
-                pixel_bbox = None
-            else:
-                yolo_bbox, pixel_bbox = bbox_result
-
-            # Copy original image
-            shutil.copy(img_path, dest_img_dir / img_path.name)
-
-            # Apply preprocessing and save
-            preprocessed_img = preprocess_image(img)
-            cv2.imwrite(str(dest_img_dir / img_path.name), preprocessed_img)
-
-            # Create YOLO label file
-            label_path = dest_lbl_dir / f"{img_path.stem}.txt"
-            with open(label_path, "w") as f:
-                x_c, y_c, bbox_w, bbox_h = yolo_bbox
-                f.write(f"{class_id} {x_c:.6f} {y_c:.6f} {bbox_w:.6f} {bbox_h:.6f}\n")
-
-            # Create visualization with bounding box on original image
-            if pixel_bbox is not None:
-                vis_img = img.copy()
-                x, y, box_w, box_h = pixel_bbox
-                cv2.rectangle(vis_img, (x, y), (x + box_w, y + box_h), (0, 255, 0), 2)
+        for split_name, split_files in splits.items():
+            for img_path in split_files:
+                dest_img_dir = output_dir / "images" / split_name
+                dest_lbl_dir = output_dir / "labels" / split_name
+                dest_vis_dir = output_dir / "visualizations" / split_name
                 
-                # Add class label
-                label_text = f"{class_dir.name}"
-                cv2.putText(vis_img, label_text, (x, y - 10), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                dest_img_dir.mkdir(parents=True, exist_ok=True)
+                dest_lbl_dir.mkdir(parents=True, exist_ok=True)
+                dest_vis_dir.mkdir(parents=True, exist_ok=True)
+
+                # Read original image
+                img = cv2.imread(str(img_path))
+                if img is None:
+                    print(f"⚠️  Could not read {img_path.name}, skipping")
+                    continue
+
+                # Detect bounding box on original image
+                bbox_result = detect_object_bbox(img_path)
                 
-                cv2.imwrite(str(dest_vis_dir / img_path.name), vis_img)
+                if bbox_result is None:
+                    print(f"⚠️  Could not detect object in {img_path.name}, using default bbox")
+                    yolo_bbox = (0.5, 0.65, 0.25, 0.45)
+                    pixel_bbox = None
+                else:
+                    yolo_bbox, pixel_bbox = bbox_result
 
-# -------------------------------
-# CREATE data.yaml FILES
-# -------------------------------
-# Original images
+                # Copy original image
+                shutil.copy(img_path, dest_img_dir / img_path.name)
 
-# Preprocessed images
-yaml_path_prep = output_dir / "data.yaml"
-with open(yaml_path_prep, "w") as f:
-    f.write(f"train: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/final_dataset_yolo_warp_contour/images/train\n")
-    f.write(f"val: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/final_dataset_yolo_warp_contour/images/val\n")
-    f.write(f"test: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/final_dataset_yolo_warp_contour/images/test\n\n")
-    f.write(f"nc: {len(class_names)}\n")
-    f.write("names: [\n")
-    for i, name in enumerate(class_names):
-        comma = "," if i < len(class_names) - 1 else ""
-        f.write(f"  '{name}'{comma}\n")
-    f.write("]\n")
+                # Apply preprocessing and save
+                preprocessed_img = preprocess_image(img)
+                cv2.imwrite(str(dest_img_dir / img_path.name), preprocessed_img)
+
+                # Create YOLO label file
+                label_path = dest_lbl_dir / f"{img_path.stem}.txt"
+                with open(label_path, "w") as f:
+                    x_c, y_c, bbox_w, bbox_h = yolo_bbox
+                    f.write(f"{class_id} {x_c:.6f} {y_c:.6f} {bbox_w:.6f} {bbox_h:.6f}\n")
+
+                # Create visualization with bounding box on original image
+                if pixel_bbox is not None:
+                    vis_img = img.copy()
+                    x, y, box_w, box_h = pixel_bbox
+                    cv2.rectangle(vis_img, (x, y), (x + box_w, y + box_h), (0, 255, 0), 2)
+                    
+                    # Add class label
+                    label_text = f"{class_dir.name}"
+                    cv2.putText(vis_img, label_text, (x, y - 10), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                    
+                    cv2.imwrite(str(dest_vis_dir / img_path.name), vis_img)
+
+    # -------------------------------
+    # CREATE data.yaml FILES
+    # -------------------------------
+    # Original images
+
+    # Preprocessed images
+    yaml_path_prep = output_dir / "data.yaml"
+    with open(yaml_path_prep, "w") as f:
+        f.write(f"train: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/final_dataset_yolo_warp_contour/images/train\n")
+        f.write(f"val: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/final_dataset_yolo_warp_contour/images/val\n")
+        f.write(f"test: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/final_dataset_yolo_warp_contour/images/test\n\n")
+        f.write(f"nc: {len(class_names)}\n")
+        f.write("names: [\n")
+        for i, name in enumerate(class_names):
+            comma = "," if i < len(class_names) - 1 else ""
+            f.write(f"  '{name}'{comma}\n")
+        f.write("]\n")
