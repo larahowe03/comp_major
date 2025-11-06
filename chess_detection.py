@@ -59,7 +59,7 @@ def contour_model_prediction(img):
 def colour_model_prediction(img):
     result = colour_model.predict(
         source=img,
-        conf=0.2,
+        conf=0.6,
         imgsz=448,
         device=device,
         verbose=False
@@ -71,7 +71,7 @@ def undistort(img, K, d):
 
 
 # Initialize camera and calibration
-def initialize_camera(phone_ip="10.19.206.177", port="4747"):
+def initialize_camera(phone_ip="10.16.241.228", port="4747"):
     """Initialize camera connection."""
     urls = [
         f"http://{phone_ip}:{port}/video",

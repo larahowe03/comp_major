@@ -15,6 +15,60 @@ UPDATE_BOARD = 6
 current_state = IDLE
 prev_state = IDLE
 
+def get_cell_location(unmargined_img, final_preds, bottom_loc):
+    # Get image dimensions
+    h, w = unmargined_img.shape[:2]
+    
+    # Calculate cell size (assuming square board)
+    cell_width = w / 8
+    cell_height = h / 8
+    
+    # List to store pieces with their positions
+    pieces_with_positions = []
+    
+    # Process each detected piece
+    for pred, loc in zip(final_preds, bottom_loc):
+        if loc is None or len(loc) != 2:
+            continue
+        
+        x, y = loc
+        
+        # Check if location is within valid board area
+        if x < 0 or x >= w or y < 0 or y >= h:
+            print(f"Warning: Piece at ({x}, {y}) is outside board bounds")
+            continue
+        
+        # Determine which cell this piece belongs to
+        col = int(x / cell_width)
+        # row = int(y / cell_height)
+        
+        bias = cell_height * 0.1  # 10% of cell height
+        adjusted_y = max(0, y - bias)
+        row = int(adjusted_y / cell_height)
+        
+        # Clamp to valid range [0, 7] just in case
+        col = max(0, min(7, col))
+        row = max(0, min(7, row))
+        
+        # Get chess notation for logging
+        notation = get_chess_notation(row, col)
+        
+        # Add to pieces list
+        pieces_with_positions.append({
+            'row': row,
+            'col': col,
+            'class_name': pred
+        })
+        
+        print(f"Detected {pred} at {notation} (row={row}, col={col}, pixel=({x:.1f}, {y:.1f}))")
+    
+    # Convert to board state using existing function
+    board_state = detections_to_board(pieces_with_positions)
+    
+    return board_state
+    
+
+
 def detections_to_board(pieces_with_positions):
     board = [[None for _ in range(8)] for _ in range(8)]
 
@@ -322,6 +376,10 @@ while running:
         annotated_img_unmargined = visualise_detections(warp_unmargined, final_boxes_unmargined, final_preds, bottom_loc)
         cv2.imshow('annotated_img_unmargined', cv2.cvtColor(annotated_img_unmargined, cv2.COLOR_BGR2RGB))
 
+        new_board_state = get_cell_location(warp_unmargined, final_preds, bottom_loc)
+        board_state = new_board_state
+        
+        
     if cv2.waitKey(1) & 0xFF == ord('q'):
         running = False
     
