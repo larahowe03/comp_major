@@ -34,8 +34,48 @@ BUTTON_Y = BOARD_HEIGHT + 20
 # Font
 font = pygame.font.Font(None, 36)
 
+
+
+
 # Setup mode flag
 setup_mode = False
+
+king_in_check_info = None 
+attackers_info = []         # list of (row, col)
+is_checkmate = False
+
+def set_king_in_check(colour, pos):
+    """Highlight the king's square and show text until cleared."""
+    global king_in_check_info
+    king_in_check_info = {'colour': colour, 'pos': pos}
+    
+def set_check_status(colour, king_pos, attackers, checkmate=False):
+    """
+    Display king in check/checkmate and highlight attackers.
+    Args:
+        colour: 'white' or 'black'
+        king_pos: (row, col)
+        attackers: list of (row, col) positions of pieces attacking the king
+        checkmate: True if checkmate
+    """
+    global king_in_check_info, attackers_info, is_checkmate
+    king_in_check_info = {'colour': colour, 'pos': king_pos}
+    attackers_info = attackers or []
+    is_checkmate = checkmate
+
+
+def clear_check_status():
+    """Clear any check/checkmate highlight."""
+    global king_in_check_info, attackers_info, is_checkmate
+    king_in_check_info = None
+    attackers_info = []
+    is_checkmate = False
+
+
+def clear_king_in_check():
+    """Remove king-in-check status."""
+    global king_in_check_info
+    king_in_check_info = None
 
 # Move highlight info
 last_move_info = None  # Will store {'from': (row, col), 'to': (row, col), 'valid': bool}
@@ -147,6 +187,46 @@ def draw_move_highlights():
         # Draw thicker border for destination
         pygame.draw.rect(screen, highlight_color, (x, y, CELL_WIDTH, CELL_HEIGHT), 6)
 
+def draw_king_check_status():
+    """Draw highlights for king in check or checkmate, plus attacker highlights."""
+    global king_in_check_info, attackers_info, is_checkmate
+    if king_in_check_info is None:
+        return
+
+    # --- Highlight the king’s square in red ---
+    row, col = king_in_check_info['pos']
+    x = col * CELL_WIDTH
+    y = row * CELL_HEIGHT
+
+    king_surface = pygame.Surface((CELL_WIDTH, CELL_HEIGHT))
+    king_surface.set_alpha(160)
+    king_surface.fill((255, 0, 0))  # Red for king
+    screen.blit(king_surface, (x, y))
+    pygame.draw.rect(screen, (255, 0, 0), (x, y, CELL_WIDTH, CELL_HEIGHT), 5)
+
+    # --- Highlight attackers in blue ---
+    for attacker in attackers_info:
+        r, c = attacker
+        ax = c * CELL_WIDTH
+        ay = r * CELL_HEIGHT
+        atk_surface = pygame.Surface((CELL_WIDTH, CELL_HEIGHT))
+        atk_surface.set_alpha(140)
+        atk_surface.fill((0, 0, 255))  # Blue for attacking pieces
+        screen.blit(atk_surface, (ax, ay))
+        pygame.draw.rect(screen, (0, 0, 255), (ax, ay, CELL_WIDTH, CELL_HEIGHT), 4)
+
+    # --- Draw the text message ---
+    if is_checkmate:
+        msg = f"{king_in_check_info['colour'].capitalize()} King Checkmate!"
+        color = (255, 0, 0)
+    else:
+        msg = f"{king_in_check_info['colour'].capitalize()} King in Check!"
+        color = (200, 0, 0)
+
+    text_surface = font.render(msg, True, color)
+    text_rect = text_surface.get_rect(center=(WIDTH // 2, 20))
+    screen.blit(text_surface, text_rect)
+
 
 def draw_pieces(board):
     """Draw pieces on the board based on the initial state"""
@@ -253,6 +333,8 @@ def do_gui(board_state, prev_board_state, current_state):
     
     # Draw move highlights (before pieces so pieces are on top)
     draw_move_highlights()
+    
+    draw_king_check_status()
     
     # Draw pieces
     draw_pieces(board_state)

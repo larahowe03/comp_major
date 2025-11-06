@@ -240,6 +240,40 @@ def get_squares_attacked_by_opponent(board, colour):
     
     return not_allowable_moves
 
+def check_if_checkmate(board, colour):
+    """
+    Naive checkmate detection: if the king is in check and has no legal moves.
+    Returns (bool, list_of_attackers)
+    """
+    from allowable_moves import get_allowable_move, in_bounds
+    king_pos = find_king(board, colour)
+    if king_pos is None:
+        return False, []
+
+    attacked_squares = get_squares_attacked_by_opponent(board, colour)
+    attackers = []
+
+    # Find which pieces are attacking the king
+    for r in range(8):
+        for c in range(8):
+            piece = board[r][c]
+            if piece is not None and piece.colour != colour:
+                moves = get_allowable_move(board, r, c)
+                if list(king_pos) in moves:
+                    attackers.append((r, c))
+
+    # Basic checkmate test (no king escape)
+    if list(king_pos) in attacked_squares:
+        # Check if king has any valid escape squares
+        from allowable_moves import get_allowable_move
+        king_moves = get_allowable_move(board, king_pos[0], king_pos[1])
+        safe_moves = [m for m in king_moves if m not in attacked_squares]
+        if not safe_moves:
+            return True, attackers
+
+    return False, attackers
+
+
 def check_if_in_check(board):
     """
     Check if either king is in check after a move.
@@ -589,6 +623,19 @@ while running:
                         
                         # Check if either king is in check
                         check_status = check_if_in_check(board_state)
+
+                        if check_status['white_in_check']:
+                            white_king_pos = find_king(board_state, "white")
+                            is_mate, attackers = check_if_checkmate(board_state, "white")
+                            gui.set_check_status("white", white_king_pos, attackers, checkmate=is_mate)
+
+                        elif check_status['black_in_check']:
+                            black_king_pos = find_king(board_state, "black")
+                            is_mate, attackers = check_if_checkmate(board_state, "black")
+                            gui.set_check_status("black", black_king_pos, attackers, checkmate=is_mate)
+
+                        else:
+                            gui.clear_check_status()
                         
                         # Clear invalid move info since move was legal
                         invalid_move_info = None
