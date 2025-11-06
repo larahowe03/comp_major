@@ -1,7 +1,7 @@
 import cv2
 from collections import deque
 import time
-from allowable_moves import Piece, initial_state
+from allowable_moves import initial_state
 from camera_setup import undistort, init_detection_system, cleanup_camera
 from move_logic import detect_move, check_piece_moved_from_invalid_square, check_if_checkmate, check_if_in_check
 from chess_detection import detect_pieces
