@@ -203,6 +203,8 @@ def visualise_detections(img, boxes, predictions, piece_colours, class_names=Non
         y1 = box["y1"]
         x2 = box["x2"]
         y2 = box["y2"]
+
+        
         
         # Pick color based on index
         color = colors[i % len(colors)]
@@ -284,8 +286,9 @@ while running:
 
         final_boxes, final_preds, final_sources = stabilise_piece_prediction(contour_boxes, colour_boxes, contour_classes, colour_classes, piece_colours, final_preds, final_sources)
 
-        annotated_img = visualise_detections(warp_margined, final_boxes, final_preds, piece_colours)
-        cv2.imshow('annotated_img', cv2.cvtColor(annotated_img, cv2.COLOR_BGR2RGB))
+        annotated_img_margined = visualise_detections(warp_margined, final_boxes, final_preds, piece_colours)
+
+        cv2.imshow('annotated_img_margined', cv2.cvtColor(annotated_img_margined, cv2.COLOR_BGR2RGB))
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         running = False
