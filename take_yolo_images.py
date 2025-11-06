@@ -59,7 +59,7 @@ if __name__ == "__main__":
 
         undistorted = undistort(frame, K, d)
 
-        warped, contoured_img, pts_src  = process_chess_image(undistorted)
+        warped, contoured_img, pts_src = process_chess_image(undistorted)
 
         # Display the frame
         try:

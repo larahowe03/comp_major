@@ -16,6 +16,60 @@ UPDATE_BOARD = 6
 current_state = IDLE
 prev_state = IDLE
 
+def detections_to_board(pieces_with_positions):
+    board = [[None for _ in range(8)] for _ in range(8)]
+
+    for piece in pieces_with_positions:
+        row, col = piece['row'], piece['col']
+        cls_name = piece['class_name'].lower().strip()  # ensure consistent formatting
+
+        # Split into type and color
+        if "white" in cls_name:
+            color = "white"
+            piece_type = cls_name.replace("white_", "")
+        elif "black" in cls_name:
+            color = "black"
+            piece_type = cls_name.replace("black_", "")
+        else:
+            continue
+
+        # 🔧 Normalize naming to match allowable_moves.Piece conventions
+        if piece_type == "rook":
+            piece_type = "castle"
+        elif piece_type == "queen":
+            piece_type = "queen"  # keep as is
+        elif piece_type == "king":
+            piece_type = "king"
+        elif piece_type == "bishop":
+            piece_type = "bishop"
+        elif piece_type == "knight":
+            piece_type = "knight"
+        elif piece_type == "pawn":
+            piece_type = "pawn"
+
+        # Create Piece instance and store
+        board[row][col] = Piece(piece_type, color)
+
+    return board
+
+
+
+def diff_board(prev_board, new_board):
+    moved_from = None
+    moved_to = None
+
+    for r in range(8):
+        for c in range(8):
+            old_piece = prev_board[r][c]
+            new_piece = new_board[r][c]
+            if old_piece and not new_piece:
+                moved_from = (r, c, old_piece)
+            elif not old_piece and new_piece:
+                moved_to = (r, c, new_piece)
+    return moved_from, moved_to
+
+
+
 def get_chess_notation(row, col, flip_board=False):
     """Convert row/col to chess notation (e.g., 'e4')."""
     if flip_board:
@@ -173,7 +227,19 @@ while running:
                 top_margin_extra=TOP_MARGIN_EXTRA,
                 min_confidence=0.6
             )
-            # print("Detected pieces:")
+            
+        if pieces_with_positions:
+            new_board_state = detections_to_board(pieces_with_positions)
+            moved_from, moved_to = diff_board(board_state, new_board_state)
+
+            if moved_from and moved_to:
+                r1, c1, piece = moved_from
+                r2, c2, _ = moved_to
+                move_str = f"{piece.colour} {piece.type}: {get_chess_notation(r1, c1)} → {get_chess_notation(r2, c2)}"
+                print("♟ Detected move:", move_str)
+
+            # Replace the global board state
+            board_state = new_board_state
             
             # for piece in pieces_with_positions:
             #     print(f"  {piece['class_name']} at {piece['position']} (conf: {piece['confidence']:.2f})")
@@ -183,9 +249,6 @@ while running:
         if detection_result is not None:
             annotated = detection_result.plot()
             cv2.imshow('Margined Frame', annotated)
-        # if unmargined_result is not None:
-        #     annotated = unmargined_result.plot()
-        #     cv2.imshow('Unmargined Frame', annotated)
     
     # Check for quit key
     if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -203,10 +266,6 @@ while running:
         # Monitor board for changes
         if is_stable == False:
             current_state = MOVING
-        
-        # Example transition (you can customize this)
-        # if board_is_stable_for_2_seconds():
-        #     current_state = PREDICT
     
     elif current_state == PREDICT:
         # Use detection results to predict move

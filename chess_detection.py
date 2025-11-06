@@ -148,7 +148,7 @@ class PredictionStabilizer:
 def contour_model_prediction(img):
     result = contour_model.predict(
         source=img,
-        conf=0.1,
+        conf=0.2,
         imgsz=448,
         device=device,
         verbose=False
@@ -159,7 +159,7 @@ def contour_model_prediction(img):
 def colour_model_prediction(img):
     result = colour_model.predict(
         source=img,
-        conf=0.1,
+        conf=0.2,
         imgsz=448,
         device=device,
         verbose=False
@@ -367,6 +367,21 @@ def ensemble_predictions(contour_result, colour_result, iou_threshold=0.5, conf_
     ensemble_result = copy.deepcopy(colour_result)
     ensemble_result.boxes = new_boxes
     
+    # Keep only the highest-confidence detection for each class
+    unique_final = {}
+    for i, cls_id in enumerate(final_cls):
+        conf = final_confs[i]
+        if cls_id not in unique_final or conf > unique_final[cls_id]["conf"]:
+            unique_final[cls_id] = {
+                "box": final_boxes[i],
+                "conf": conf,
+                "cls": cls_id,
+            }
+
+    final_boxes = [v["box"] for v in unique_final.values()]
+    final_confs = [v["conf"] for v in unique_final.values()]
+    final_cls   = [v["cls"]  for v in unique_final.values()]
+    
     return ensemble_result
 
 
@@ -375,7 +390,12 @@ def ensemble_model(contoured_warp, coloured_warp):
     contour_predictions = contour_model_prediction(contoured_warp)
     colour_predictions = colour_model_prediction(coloured_warp)
     
-    debug_ensemble_analysis(contour_predictions, colour_predictions, iou_threshold=0.5)
+    annotated = contour_predictions.plot()
+    cv2.imshow('Contour Frame', annotated)
+            
+    annotated = colour_predictions.plot()
+    cv2.imshow('Colour Frame', annotated)
+    # debug_ensemble_analysis(contour_predictions, colour_predictions, iou_threshold=0.5)
     
     ensemble_result = ensemble_predictions(
         contour_predictions, 
@@ -392,7 +412,7 @@ def undistort(img, K, d):
 
 
 # Initialize camera and calibration
-def initialize_camera(phone_ip="192.168.0.105", port="4747"):
+def initialize_camera(phone_ip="10.16.243.119", port="4747"):
     """Initialize camera connection."""
     urls = [
         f"http://{phone_ip}:{port}/video",
@@ -472,7 +492,7 @@ def detect_pieces(warped):
     # Prepare images
     contoured_warp = preprocess_image(warped)
     coloured_warp = warped
-        
+
     # Get ensemble predictions
     ensemble_result= ensemble_model(contoured_warp, coloured_warp)
     
@@ -493,7 +513,6 @@ def detect_pieces(warped):
             'class_id': class_id,
             'class_name': stabilized_result.names[class_id]
         })
-    
     return stabilized_result
 
 
