@@ -209,6 +209,83 @@ def check_piece_moved_from_invalid_square(prev_board, current_board, invalid_squ
     
     return False
 
+def find_king(board, colour):
+    """Find the position of a king on the board"""
+    if board is None:
+        return None
+    
+    for row in range(8):
+        for col in range(8):
+            piece = board[row][col]
+            if piece is not None and piece.type == "king" and piece.colour == colour:
+                return (row, col)
+    
+    return None
+
+def get_squares_attacked_by_opponent(board, colour):
+    """Get all squares attacked by opponent"""
+    from allowable_moves import get_allowable_move, in_bounds
+    
+    not_allowable_moves = []
+
+    for r in range(len(board)):
+        for c in range(len(board[r])):
+            if not in_bounds(r, c):
+                continue
+            target = board[r][c]
+            if target is None or target.type == "king":
+                continue
+            if colour != target.colour:
+                not_allowable_moves.extend(get_allowable_move(board, r, c))
+    
+    return not_allowable_moves
+
+def check_if_in_check(board):
+    """
+    Check if either king is in check after a move.
+    
+    Returns:
+        dict: {
+            'white_in_check': bool,
+            'black_in_check': bool,
+            'message': str or None
+        }
+    """
+    if board is None:
+        return {
+            'white_in_check': False,
+            'black_in_check': False,
+            'message': None
+        }
+    
+    white_in_check = False
+    black_in_check = False
+    message = None
+    
+    # Find white king
+    white_king_pos = find_king(board, "white")
+    if white_king_pos is not None:
+        white_attacked_squares = get_squares_attacked_by_opponent(board, "white")
+        if list(white_king_pos) in white_attacked_squares:
+            white_in_check = True
+            print("⚠️  WHITE KING IS IN CHECK!")
+            message = "White King is in check!"
+    
+    # Find black king
+    black_king_pos = find_king(board, "black")
+    if black_king_pos is not None:
+        black_attacked_squares = get_squares_attacked_by_opponent(board, "black")
+        if list(black_king_pos) in black_attacked_squares:
+            black_in_check = True
+            print("⚠️  BLACK KING IS IN CHECK!")
+            message = "Black King is in check!"
+    
+    return {
+        'white_in_check': white_in_check,
+        'black_in_check': black_in_check,
+        'message': message
+    }
+
 def stabilise_piece_prediction(contour_boxes, colour_boxes, contour_classes, colour_classes, 
                                piece_colours, previous_preds=None, previous_sources=None, 
                                previous_boxes=None):
@@ -510,6 +587,9 @@ while running:
                         board_state = most_common_board
                         prev_board_state = board_state
                         
+                        # Check if either king is in check
+                        check_status = check_if_in_check(board_state)
+                        
                         # Clear invalid move info since move was legal
                         invalid_move_info = None
                     else:
@@ -596,6 +676,9 @@ while running:
                                 # Update board state
                                 board_state = most_common_board
                                 prev_board_state = board_state
+                                
+                                # Check if either king is in check
+                                check_status = check_if_in_check(board_state)
                                 
                                 # Clear invalid move info
                                 invalid_move_info = None
