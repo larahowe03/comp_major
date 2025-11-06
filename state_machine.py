@@ -186,7 +186,7 @@ def stabilise_piece_prediction(contour_boxes, colour_boxes, contour_classes, col
     print(f"Final sources: {final_sources}")
     
     return final_boxes, final_preds, final_sources
-def visualise_detections(img, boxes, predictions, piece_colours, class_names=None):
+def visualise_detections(img, boxes, predictions, bottom_loc, class_names=None):
     annotated = img.copy()
     
     colors = [
@@ -198,14 +198,12 @@ def visualise_detections(img, boxes, predictions, piece_colours, class_names=Non
         (0, 255, 255),    # Yellow
     ]
     
-    for i, (box, pred, col) in enumerate(zip(boxes, predictions, piece_colours)):
+    for i, (box, pred) in enumerate(zip(boxes, predictions)):
         x1 = box["x1"]
         y1 = box["y1"]
         x2 = box["x2"]
         y2 = box["y2"]
 
-        
-        
         # Pick color based on index
         color = colors[i % len(colors)]
         
@@ -216,6 +214,16 @@ def visualise_detections(img, boxes, predictions, piece_colours, class_names=Non
         label = f"{pred}" if pred is not None else "Unknown"
         cv2.putText(annotated, label, (x1, y1 - 10),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+    
+    # Draw bottom locations as dots
+    if bottom_loc is not None:
+        for i, loc in enumerate(bottom_loc):
+            if loc is not None and len(loc) == 2:
+                x, y = loc
+                # Draw a filled circle at the bottom location
+                cv2.circle(annotated, (int(x), int(y)), radius=5, color=(255, 0, 255), thickness=-1)
+                # Draw a small circle outline for better visibility
+                cv2.circle(annotated, (int(x), int(y)), radius=6, color=(255, 255, 255), thickness=1)
     
     return annotated
 
@@ -229,6 +237,27 @@ board_state = [
     [Piece("pawn", "black"), Piece("pawn", "black"), Piece("pawn", "black"), Piece("pawn", "black"), Piece("pawn", "black"), Piece("pawn", "black"), Piece("pawn", "black"), Piece("pawn", "black")],
     [Piece("castle", "black"), Piece("knight", "black"), Piece("bishop", "black"), Piece("queen", "black"), Piece("king", "black"), Piece("bishop", "black"), Piece("knight", "black"), Piece("castle", "black")]
 ]
+
+def transform_boxes_remove_margin(boxes, margin=80):
+    """Transform box coordinates from margined image to unmargined image."""
+    transformed_boxes = []
+    bottom_loc = []
+    for box in boxes:
+        x1 = box["x1"] - 63
+        y1 = box["y1"] - 70
+        x2 = box["x2"] - 63
+        y2 = box["y2"] - 70
+        transformed_box = {
+            "x1": x1,
+            "y1": y1,
+            "x2": x2,
+            "y2": y2
+        }
+        x_coord = (x1 + (x2-x1)//2)
+        y_coord = y2
+        bottom_loc.append([x_coord, y_coord])
+        transformed_boxes.append(transformed_box)
+    return transformed_boxes, bottom_loc
 
 # Initialize detection system
 print("Initializing chess detection system...")
@@ -286,9 +315,12 @@ while running:
 
         final_boxes, final_preds, final_sources = stabilise_piece_prediction(contour_boxes, colour_boxes, contour_classes, colour_classes, piece_colours, final_preds, final_sources)
 
-        annotated_img_margined = visualise_detections(warp_margined, final_boxes, final_preds, piece_colours)
+        # Transform boxes to unmargined coordinates
+        final_boxes_unmargined, bottom_loc = transform_boxes_remove_margin(final_boxes, MARGIN)
 
-        cv2.imshow('annotated_img_margined', cv2.cvtColor(annotated_img_margined, cv2.COLOR_BGR2RGB))
+        # Visualize on unmargined image
+        annotated_img_unmargined = visualise_detections(warp_unmargined, final_boxes_unmargined, final_preds, bottom_loc)
+        cv2.imshow('annotated_img_unmargined', cv2.cvtColor(annotated_img_unmargined, cv2.COLOR_BGR2RGB))
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         running = False
