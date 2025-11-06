@@ -163,7 +163,7 @@ def detect_move(prev_board, current_board):
     return {
         'valid': True,
         'from': (from_row, from_col),
-        'to': (to_row, to_col),  # FIXED: was (row, to_col)
+        'to': (row, to_col),
         'piece': moved_piece,
         'captured': captured_piece,
         'is_legal': is_legal,
@@ -311,6 +311,13 @@ def get_squares_attacked_by_opponent(board, colour):
     
     return not_allowable_moves
 
+def check_in_check(board, row, col):
+    king = board[row][col]
+    
+    if [row, col] in get_squares_attacked_by_opponent(king.colour):
+        return True
+    else:
+        return False
 
 def get_allowable_move_king(board, piece, row, col, multiplier):
     """King movement with board parameter"""
