@@ -5,29 +5,15 @@ import numpy as np
 # Contains functions to check if the board streaming is stable
 # ------------------------------------------------------------------------
 
-def calculate_corner_variation(pts_buffer, threshold=10.0):
-    """
-    Check if there is large variation in board corner positions.
-    
-    Args:
-        pts_buffer: List of corner arrays, each shape (4, 2) with format:
-                    [[x0, y0], [x1, y1], [x2, y2], [x3, y3]]
-        threshold: Maximum allowed standard deviation (pixels) to consider stable
-    
-    Returns:
-        tuple: (is_stable, max_std, variation_details)
-            - is_stable: True if board is stable (low variation)
-            - max_std: Maximum standard deviation across all corners
-            - variation_details: Dict with per-corner standard deviations
-    """
-    
+# Check if there is random variation in a buffer of the corner points ot check if the board is stable
+def calculate_corner_variation(pts_buffer, threshold=10.0):    
     # Filter out None values
     valid_pts = [pts for pts in pts_buffer if pts is not None]
     
     if len(valid_pts) < 2:
         return True, 0.0, {}  # Not enough data, assume stable
     
-    # Convert to numpy array: shape (n_frames, 4, 2)
+    # Convert to numpy array
     pts_array = np.array(valid_pts)
     
     # Calculate standard deviation for each corner in x and y

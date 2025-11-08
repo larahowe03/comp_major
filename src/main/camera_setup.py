@@ -9,15 +9,11 @@ from warp_board import process_chess_image
 # Initialises connection with the camera and undistorts frame  
 # ------------------------------------------------------------------------
 
-def undistort(img, K, d):
-    """
-    Undistortion of the camera frame
-    """
-    
+def undistort(img, K, d):    
     return cv2.undistort(img, K, d, None, K)
 
 
-def initialize_camera(phone_ip="10.16.244.222", port="4747"):
+def initialise_camera(phone_ip="10.19.204.249", port="4747"):
     """
     Initialize camera connection
     """
@@ -42,24 +38,16 @@ def initialize_camera(phone_ip="10.16.244.222", port="4747"):
     return None
 
 
-def load_calibration(filepath="calibration_coefficients.pkl"):
-    """
-    Load camera calibration data
-    """
-    
+def load_calibration(filepath="calibration_coefficients.pkl"):    
     with open(filepath, "rb") as f:
         data = pickle.load(f)
     return data['camera_matrix'], data['distortion_coeffs']
 
 
-def init_detection_system():
-    """
-    Initialize the detection system (call once at startup)
-    """
-    
+def init_detection_system():    
     global camera, K_matrix, dist_coeffs
     
-    camera = initialize_camera()
+    camera = initialise_camera()
     if camera is None:
         return False
     
@@ -84,11 +72,7 @@ def cleanup_camera():
         cv2.destroyAllWindows()
         
 
-def get_current_frame():
-    """
-    Get and process current frame from camera
-    """
-    
+def get_current_frame():    
     global camera, K_matrix, dist_coeffs
     
     if camera is None:

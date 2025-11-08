@@ -7,10 +7,8 @@ from allowable_moves import Piece
 # Contains functions to get the board states
 # ------------------------------------------------------------------------
 
+# map the piece and their locations to the board for gui
 def map_detections(pieces_with_positions):
-    """
-    Create board state in the right format
-    """
     board = [[None for _ in range(8)] for _ in range(8)]
     
     # Piece type mapping
@@ -27,7 +25,7 @@ def map_detections(pieces_with_positions):
         row, col = piece['row'], piece['col']
         class_name = piece['class_name'].lower().strip()
 
-        # Determine color and piece type
+        # Get color and piece type
         if "white" in class_name:
             color = "white"
             piece_type = class_name.replace("white_", "")
@@ -45,18 +43,15 @@ def map_detections(pieces_with_positions):
 
     return board
 
-
+# over time, get the most commonly predicted board state to stabilise the predictions
 def get_most_common_board_state(prediction_history):
-    """
-    Extract the most common board state from prediction history.
-    Returns None if no valid predictions exist.
-    """
     if not prediction_history:
         return None
     
     # Count occurrences of each board state
     board_state_counts = Counter()
     
+    # Count the types of board states that happen
     for board_state in prediction_history:
         board_tuple = tuple(
             tuple((piece.type, piece.colour) if piece is not None else None for piece in row)
@@ -83,12 +78,7 @@ def get_most_common_board_state(prediction_history):
     return board_state
 
 
-def get_board_state(unmargined_img, final_preds, bottom_loc):
-    """
-    Get board state from the predicted labels and the locations of the pieces
-    on the board.
-    """
-    
+def get_board_state(unmargined_img, final_preds, bottom_loc):    
     if unmargined_img is None or final_preds is None or bottom_loc is None:
         return None
     
@@ -116,7 +106,7 @@ def get_board_state(unmargined_img, final_preds, bottom_loc):
         # Determine column
         col = max(0, min(7, int(x / cell_width)))
         
-        # Find closest row - stop flucuations 
+        # Find closest row so that you can determine what location the piece is in
         distances = np.abs(row_boundaries - y)
         row = int(np.argmin(distances))
         
@@ -133,14 +123,8 @@ def get_board_state(unmargined_img, final_preds, bottom_loc):
     return board_state
 
 
-def get_cell_on_board(row, col, flip_board=False):
-    """
-    Convert row/col to chess notation (eg: a1, b4, etc..).
-    """
-    if flip_board:
-        row = 7 - row
-        col = 7 - col
-    
+def get_cell_on_board(row, col):
+    # Convert row/col to chess notation (eg: a1, b4, etc..).    
     files = 'abcdefgh'
     ranks = '87654321'
     

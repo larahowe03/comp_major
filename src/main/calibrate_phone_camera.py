@@ -85,14 +85,8 @@ def capture_images():
     save_dir = "calibration_images"
     os.makedirs(save_dir, exist_ok=True)
 
-    # Variables for auto-saving
-    last_save_time = time.time()
-    save_interval = 2  # seconds
     image_count = 0
 
-    print(f"\nCapturing images every {save_interval} seconds...")
-    print("Press 'q' to quit")
-    print("Press 's' to save immediately")
     print(f"Images will be saved to: {save_dir}/\n")
 
     while True:
@@ -101,38 +95,20 @@ def capture_images():
             print("Connection lost")
             break
         
-        current_time = time.time()
-        
-        # Auto-save every 2 seconds
-        if current_time - last_save_time >= save_interval:
-            filename = os.path.join(save_dir, f"image_{image_count:04d}.png")
-            cv2.imwrite(filename, frame)
-            print(f"✓ Saved: {filename}")
-            image_count += 1
-            last_save_time = current_time
-        
-        # Show countdown timer on frame
-        time_remaining = save_interval - (current_time - last_save_time)
-        cv2.putText(frame, f"Next capture in: {time_remaining:.1f}s", 
-                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        cv2.putText(frame, f"Images saved: {image_count}", 
-                    (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        
         cv2.imshow('Camera Feed', frame)
         
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):
             break
         elif key == ord('s'):
-            # Manual save
+            # Save image on press
             filename = os.path.join(save_dir, f"image_{image_count:04d}.png")
             cv2.imwrite(filename, frame)
-            print(f"✓ Manual save: {filename}")
             image_count += 1
 
     cap.release()
     cv2.destroyAllWindows()
-    print(f"\nTotal images captured: {image_count}")
+    print(f"Total images captured: {image_count}")
 
 if __name__ == "__main__":
     action = input("1: extract calibration data\n2: extract calibration coefficients\n3: view calibration data\n> ")
@@ -154,7 +130,7 @@ if __name__ == "__main__":
             exit()
 
         # Calibrate the camera based on all the images
-        print(f"\nCalibrating camera with {len(corners_list)} images...")
+        print(f"Calibrating camera with {len(corners_list)} images")
         ret, K, d, rvecs, tvecs, stdDeviationsIntrinsics, stdDeviationsExtrinsics, perViewErrors = cv2.calibrateCameraExtended(
             pattern_points_list, corners_list, (w, h), None, None
         )
@@ -173,20 +149,10 @@ if __name__ == "__main__":
         
         with open("calibration_coefficients.pkl", "wb") as f:
             pickle.dump(calibration_data, f)
-        
-        print("\n" + "="*60)
-        print("CALIBRATION COMPLETE!")
-        print("="*60)
-        print(f"Reprojection error: {ret:.4f}")
-        print(f"\nCamera matrix:\n{K}")
-        print(f"\nDistortion coefficients:\n{d}")
-        print("\n✓ Saved to: calibration_coefficients.pkl")
-        print("="*60)
-
 
     elif action == "3":
         if not os.path.exists("calibration_coefficients.pkl"):
-            print("Error: calibration_coefficients.pkl not found!")
+            print("Error: calibration_coefficients.pkl not found")
             print("Run option 1 first to extract calibration data.")
             exit()
 
@@ -197,15 +163,6 @@ if __name__ == "__main__":
         d = data['distortion_coeffs']
         ret = data['reprojection_error']
         img_size = data['image_size']
-
-        print("\n" + "="*60)
-        print("CALIBRATION DATA")
-        print("="*60)
-        print(f"Reprojection error: {ret:.4f}")
-        print(f"Image size: {img_size}")
-        print(f"\nCamera matrix (K):\n{K}")
-        print(f"\nDistortion coefficients (d):\n{d}")
-        print("="*60)
     
     else:
-        print("Invalid option. Please choose 1 or 2.")
+        print("Invalid option")

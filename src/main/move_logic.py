@@ -5,23 +5,9 @@ from allowable_moves import in_bounds, get_allowable_move
 # Contains functions related to moves made and validation
 # ------------------------------------------------------------------------
 
-def detect_move(prev_board, current_board):
-    """
-    Detect which piece moved by comparing board states.
-    Only tracks: occupied -> empty (piece removed) and empty -> occupied (piece added)
-    
-    Returns:
-        dict: {
-            'valid': bool,
-            'from': (row, col) or None,
-            'to': (row, col) or None,
-            'piece': Piece object or None,
-            'captured': Piece object or None,
-            'is_legal': bool,
-            'error': str or None
-        }
-    """
-    
+# Since the model always fluctuates piece predictions but is quite stable for piece locations,
+# a move is only detected when a full location change happens in the board rather than when the board overall changes
+def detect_move(prev_board, current_board):    
     if prev_board is None or current_board is None:
         return {
             'valid': False,
@@ -33,7 +19,7 @@ def detect_move(prev_board, current_board):
             'error': 'Invalid board state'
         }
     
-    # Find all differences - only track occupancy changes
+    # Find all differences in piece locations
     pieces_removed = []  # (row, col, piece) - was occupied, now empty
     pieces_added = []    # (row, col, piece) - was empty, now occupied
     
@@ -52,12 +38,9 @@ def detect_move(prev_board, current_board):
             # Piece added: was empty, now occupied
             elif not prev_occupied and curr_occupied:
                 pieces_added.append((row, col, curr_piece))
-            
-            # If both occupied or both empty, ignore (no change in occupancy)
-    
-    # Validate move pattern
-    # Normal move: 1 removed, 1 added
-    # Capture: 2 removed (piece moved away + captured piece disappeared), 1 added
+                
+    # A normal move is when 1 piece was removed ad one was addded
+    # A piece is taken if two pieces are removed and one is added
     
     if len(pieces_added) == 1 and len(pieces_removed) == 1:
         # Normal move: one square emptied, one square filled
@@ -65,9 +48,8 @@ def detect_move(prev_board, current_board):
         to_row, to_col, arrived_piece = pieces_added[0]
         captured_piece = None
         
-        # Verify it's the same piece type and color (basic sanity check)
-        if (moved_piece.type != arrived_piece.type or 
-            moved_piece.colour != arrived_piece.colour):
+        # Verify the same piece colour and type
+        if (moved_piece.type != arrived_piece.type or moved_piece.colour != arrived_piece.colour):
             return {
                 'valid': False,
                 'from': None,
@@ -78,12 +60,11 @@ def detect_move(prev_board, current_board):
                 'error': 'Piece type/color mismatch'
             }
     
+    # cjecking if a piece has been taken
     elif len(pieces_added) == 1 and len(pieces_removed) == 2:
-        # Capture move: two squares emptied, one square filled
         to_row, to_col, arrived_piece = pieces_added[0]
         
-        # One of the removed pieces should be at the destination (captured)
-        # The other should be the piece that moved
+        # One of the removed pieces should be at the new location and the other should be gone
         captured_piece = None
         moved_piece = None
         from_row, from_col = None, None
@@ -108,9 +89,8 @@ def detect_move(prev_board, current_board):
                 'error': 'Invalid capture pattern'
             }
         
-        # Verify the moving piece matches the arrived piece
-        if (moved_piece.type != arrived_piece.type or 
-            moved_piece.colour != arrived_piece.colour):
+        # Verify the same piece colour and type
+        if (moved_piece.type != arrived_piece.type or moved_piece.colour != arrived_piece.colour):
             return {
                 'valid': False,
                 'from': None,
@@ -133,12 +113,8 @@ def detect_move(prev_board, current_board):
         }
     
     # Check if move is legal using allowable_moves
-    try:
-        allowable_moves = get_allowable_move(prev_board, from_row, from_col)
-        is_legal = [to_row, to_col] in allowable_moves
-    except Exception as e:
-        is_legal = False
-        error = f'Error checking legality: {str(e)}'
+    allowable_moves = get_allowable_move(prev_board, from_row, from_col)
+    is_legal = [to_row, to_col] in allowable_moves
     
     return {
         'valid': True,
@@ -149,13 +125,9 @@ def detect_move(prev_board, current_board):
         'is_legal': is_legal,
         'error': None if is_legal else 'Illegal move'
     }
-    
-    
-def check_piece_moved_from_invalid_square(prev_board, current_board, invalid_square):
-    """
-    Check if the piece on the invalid square has been moved
-    """
-    
+
+# Function for while it is invalid checking if it fixes and moves to a valid location
+def check_piece_moved_from_invalid_square(prev_board, current_board, invalid_square):    
     if prev_board is None or current_board is None or invalid_square is None:
         return False
     
@@ -168,103 +140,3 @@ def check_piece_moved_from_invalid_square(prev_board, current_board, invalid_squ
         return True
     
     return False
-
-
-def find_king(board, colour):
-    """
-    Find the position of a king on the board
-    """
-    
-    if board is None:
-        return None
-    
-    for row in range(8):
-        for col in range(8):
-            piece = board[row][col]
-            if piece is not None and piece.type == "king" and piece.colour == colour:
-                return (row, col)
-    
-    return None
-
-
-def get_squares_attacked_by_opponent(board, colour):
-    """
-    Get all squares attacked by opponent
-    """
-    
-    not_allowable_moves = []
-
-    for r in range(len(board)):
-        for c in range(len(board[r])):
-            if not in_bounds(r, c):
-                continue
-            target = board[r][c]
-            if target is None or target.type == "king":
-                continue
-            if colour != target.colour:
-                not_allowable_moves.extend(get_allowable_move(board, r, c))
-    
-    return not_allowable_moves
-
-
-def check_if_checkmate(board, colour):
-    """
-    Checks if the specified king is in checkmate
-    """
-    
-    king_pos = find_king(board, colour)
-    if king_pos is None:
-        return False, []
-
-    attacked_squares = get_squares_attacked_by_opponent(board, colour)
-    attackers = []
-
-    # Find which pieces are attacking the king
-    for r in range(8):
-        for c in range(8):
-            piece = board[r][c]
-            if piece is not None and piece.colour != colour:
-                moves = get_allowable_move(board, r, c)
-                if list(king_pos) in moves:
-                    attackers.append((r, c))
-
-    # Basic checkmate test
-    # Check if the king is being attacked, and king has no possible moves. If true, then checkmate
-    if list(king_pos) in attacked_squares:
-        king_moves = get_allowable_move(board, king_pos[0], king_pos[1])
-        safe_moves = [m for m in king_moves if m not in attacked_squares]
-        if not safe_moves:
-            return True, attackers
-
-    return False, attackers
-
-
-def check_if_in_check(board, colour):
-    """
-    Check if the specified king is in check.
-    """
-    
-    if board is None:
-        return False, None
-
-    king_pos = find_king(board, colour)
-    if king_pos is None:
-        return False, None
-
-    attacked_squares = get_squares_attacked_by_opponent(board, colour)
-    in_check = list(king_pos) in attacked_squares
-
-    attackers = []
-    if in_check:
-        # Identify which opponent pieces are attacking the king
-        for r in range(8):
-            for c in range(8):
-                piece = board[r][c]
-                if piece is not None and piece.colour != colour:
-                    moves = get_allowable_move(board, r, c)
-                    if list(king_pos) in moves:
-                        attackers.append((r, c))
-        
-        print(f"{colour.upper()} King is in check!")
-
-    return in_check, king_pos

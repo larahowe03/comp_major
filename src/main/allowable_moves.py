@@ -30,16 +30,15 @@ initial_state = [
 
 
 def get_allowable_move(board, row, col):
-    """
-    Wrapper function that passes board to allowable move calculations
-    """
-    
     piece = board[row][col]
 
     if piece is None:
         return []
 
-    multiplier = -1 if piece.colour == "black" else 1
+    # Since black pieces move opposite direction to white pieces
+    multiplier = 1
+    if piece.colour == "black":
+        multiplier = -1
 
     if piece.type == "pawn":
         return get_allowable_move_pawn(board, piece, row, col, multiplier)
@@ -48,6 +47,7 @@ def get_allowable_move(board, row, col):
     if piece.type == "bishop":
         return get_allowable_move_bishop(board, piece, row, col)
     if piece.type == "queen":
+        # Queen is essentially combination of two move types
         return (get_allowable_move_castle(board, piece, row, col) + 
                 get_allowable_move_bishop(board, piece, row, col))
     if piece.type == "knight":
@@ -55,12 +55,10 @@ def get_allowable_move(board, row, col):
     if piece.type == "king":
         return get_allowable_move_king(board, piece, row, col, multiplier)
 
+# ALL the allowable moves functions essentially check all the allowed locations for all pieces 
+# and check that this is within the 8x8 board and that there is not already another piece of the same colour in that location
 
-def get_allowable_move_pawn(board, piece, row, col, multiplier):
-    """
-    Pawn movement with board parameter
-    """
-    
+def get_allowable_move_pawn(board, piece, row, col, multiplier):    
     possible_moves = [
         [row+1*multiplier, col],
         [row+2*multiplier, col],
@@ -91,11 +89,7 @@ def get_allowable_move_pawn(board, piece, row, col, multiplier):
     return allowable_moves
 
 
-def get_allowable_move_castle(board, piece, row, col):
-    """
-    Castle/Rook movement with board parameter
-    """
-    
+def get_allowable_move_castle(board, piece, row, col):    
     allowable_moves = [[row, col]]
 
     directions = [(1, 0), (-1, 0), (0, 1), (0, -1)]
@@ -119,10 +113,6 @@ def get_allowable_move_castle(board, piece, row, col):
 
 
 def get_allowable_move_knight(board, piece, row, col):
-    """
-    Knight movement with board parameter
-    """
-    
     allowable_moves = [[row, col]]
 
     possible_moves = [
@@ -142,10 +132,6 @@ def get_allowable_move_knight(board, piece, row, col):
 
 
 def get_allowable_move_bishop(board, piece, row, col):
-    """
-    Bishop movement with board parameter
-    """
-    
     allowable_moves = [[row, col]]
 
     directions = [(1, 1), (1, -1), (-1, 1), (-1, -1)]
@@ -167,12 +153,8 @@ def get_allowable_move_bishop(board, piece, row, col):
 
     return allowable_moves
 
-
+# This is so that you can check that the king can move, because it cant move anywhere that an opponent is located
 def get_squares_attacked_by_opponent(board, colour):
-    """
-    Get all squares attacked by opponent with board parameter
-    """
-    
     not_allowable_moves = []
 
     for r in range(len(board)):
@@ -187,11 +169,7 @@ def get_squares_attacked_by_opponent(board, colour):
     
     return not_allowable_moves
 
-def get_allowable_move_king(board, piece, row, col, multiplier):
-    """
-    King movement with board parameter
-    """
-    
+def get_allowable_move_king(board, piece, row, col, multiplier):    
     allowable_moves = [[row, col]]
 
     directions = [
@@ -216,10 +194,72 @@ def get_allowable_move_king(board, piece, row, col, multiplier):
     
     return allowable_moves
 
-
-def in_bounds(r, c):
-    """
-    Check if position is within board bounds
-    """
+# Finsd where the king is
+def find_king(board, colour):
+    if board is None:
+        return None
     
-    return 0 <= r < 8 and 0 <= c < 8
+    for row in range(8):
+        for col in range(8):
+            piece = board[row][col]
+            if piece is not None and piece.type == "king" and piece.colour == colour:
+                return (row, col)
+    return None
+
+# Checks if the king is in checkmate
+def check_if_checkmate(board, colour):    
+    king_pos = find_king(board, colour)
+    if king_pos is None:
+        return False, []
+
+    attacked_squares = get_squares_attacked_by_opponent(board, colour)
+    attackers = []
+
+    # Find which pieces are attacking the king
+    for r in range(8):
+        for c in range(8):
+            piece = board[r][c]
+            if piece is not None and piece.colour != colour:
+                moves = get_allowable_move(board, r, c)
+                if list(king_pos) in moves:
+                    attackers.append((r, c))
+
+    # Check if the king is being attacked and king has no possible moves
+    # If true then checkmate
+    if list(king_pos) in attacked_squares:
+        king_moves = get_allowable_move(board, king_pos[0], king_pos[1])
+        safe_moves = [m for m in king_moves if m not in attacked_squares]
+        if not safe_moves:
+            return True, attackers
+
+    return False, attackers
+
+# Check if the specified king is in check.
+def check_if_in_check(board, colour):    
+    if board is None:
+        return False, None
+
+    king_pos = find_king(board, colour)
+    if king_pos is None:
+        return False, None
+
+    attacked_squares = get_squares_attacked_by_opponent(board, colour)
+    in_check = list(king_pos) in attacked_squares
+
+    attackers = []
+    if in_check:
+        # Identify which opponent pieces are attacking the king
+        for r in range(8):
+            for c in range(8):
+                piece = board[r][c]
+                if piece is not None and piece.colour != colour:
+                    moves = get_allowable_move(board, r, c)
+                    if list(king_pos) in moves:
+                        attackers.append((r, c))
+        
+        print(f"{colour.upper()} King is in check!")
+
+    return in_check, king_pos
+
+def in_bounds(row, col):    
+    return 0 <= row < 8 and 0 <= col < 8
