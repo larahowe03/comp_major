@@ -2,13 +2,13 @@ import cv2
 from collections import deque
 import time
 from allowable_moves import initial_state
-from camera_setup import init_detection_system, cleanup_camera
+from camera_setup import get_current_frame, init_detection_system, cleanup_camera
 from move_logic import detect_move, check_piece_moved_from_invalid_square, check_if_checkmate, check_if_in_check
 from chess_detection import detect_pieces
 from process_detections import stabilise_piece_prediction, visualise_detections, transform_boxes_remove_margin
 from board_stability import calculate_corner_variation
 from board_functions import get_most_common_board_state, get_board_state, get_cell_on_board
-import gui as gui
+import gui 
 
 # ------------------------------------------------------------------------
 # GLOBAL VARIABLES

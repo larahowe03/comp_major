@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import pickle
 from chess_detection import contour_model, colour_model
-from src.main.warp_board import process_chess_image
+from warp_board import process_chess_image
 
 # ------------------------------------------------------------------------
 # CAMERA SETUP
@@ -17,7 +17,7 @@ def undistort(img, K, d):
     return cv2.undistort(img, K, d, None, K)
 
 
-def initialize_camera(phone_ip="10.16.241.228", port="4747"):
+def initialize_camera(phone_ip="10.16.244.222", port="4747"):
     """
     Initialize camera connection
     """

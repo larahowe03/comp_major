@@ -231,7 +231,6 @@ def check_if_checkmate(board, colour):
     # Basic checkmate test
     # Check if the king is being attacked, and king has no possible moves. If true, then checkmate
     if list(king_pos) in attacked_squares:
-        from allowable_moves import get_allowable_move
         king_moves = get_allowable_move(board, king_pos[0], king_pos[1])
         safe_moves = [m for m in king_moves if m not in attacked_squares]
         if not safe_moves:
@@ -246,11 +245,11 @@ def check_if_in_check(board, colour):
     """
     
     if board is None:
-        return False, None, []
+        return False, None
 
     king_pos = find_king(board, colour)
     if king_pos is None:
-        return False, None, []
+        return False, None
 
     attacked_squares = get_squares_attacked_by_opponent(board, colour)
     in_check = list(king_pos) in attacked_squares
