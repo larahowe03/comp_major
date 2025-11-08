@@ -1,0 +1,13 @@
+train: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/src/datasets/dataset_yolo_warp_contour/images/train
+val: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/src/datasets/dataset_yolo_warp_contour/images/val
+test: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/src/datasets/dataset_yolo_warp_contour/images/test
+
+nc: 6
+names: [
+  'bishop',
+  'castle',
+  'king',
+  'knight',
+  'pawn',
+  'queen'
+]

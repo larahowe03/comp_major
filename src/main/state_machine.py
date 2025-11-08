@@ -332,7 +332,7 @@ while running:
                                 # Return to STATIC state
                                 prediction_history.clear()
                                 current_state = STATIC
-                                print("Valid move made - returning to STATIC state")
+                                print("Valid move made returning to STATIC state")
                             
                             else:
                                 # Still illegal - update the red highlight to new position

@@ -5,44 +5,44 @@ import cv2
 import numpy as np
 from pathlib import Path
 
-# -------------------------------
-# CONFIGURATION
-# -------------------------------
-source_dir = Path("final_dataset")
-output_dir = Path("final_dataset_yolo_warp_contour")
+source_dir = Path("../final_dataset")
+output_dir = Path("datasets/dataset_yolo_warp_contour")
 
 train_ratio = 0.7
 val_ratio = 0.2
 test_ratio = 0.1
 
-def detect_edges_laplacian(im):
-    # Convert to HSV for better color masking
-    hsv = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
+def get_mask(hsv_im):
+    # Cream mask for white pieces
+    lower_cream = np.array([90, 50, 50]) 
+    upper_cream = np.array([130, 255, 255])
+    mask_cream = cv2.inRange(hsv_im, lower_cream, upper_cream)
     
-    # Create masks for colors to remove
-    # Blue mask (wider range to catch various blues)
-    lower_blue = np.array([90, 50, 50])    # Hue ~90-130 is blue
-    upper_blue = np.array([130, 255, 255])
-    mask_blue = cv2.inRange(hsv, lower_blue, upper_blue)
-    
-    # Dark brown/black mask (low value/brightness)
+    # Dark brown/black for black pieces
     lower_dark = np.array([0, 0, 0])
-    upper_dark = np.array([180, 255, 60])  # Very low brightness (V channel)
-    mask_dark = cv2.inRange(hsv, lower_dark, upper_dark)
+    upper_dark = np.array([180, 255, 60])
+    mask_dark = cv2.inRange(hsv_im, lower_dark, upper_dark)
     
-    # Brown mask (orange-brown hues)
+    # Brown mask for properly including all black pieces
     lower_brown = np.array([5, 30, 30])
     upper_brown = np.array([25, 255, 150])
-    mask_brown = cv2.inRange(hsv, lower_brown, upper_brown)
+    mask_brown = cv2.inRange(hsv_im, lower_brown, upper_brown)
     
-    # Combine all masks (OR operation - mask out any of these colors)
-    combined_mask = cv2.bitwise_or(mask_blue, mask_dark)
+    # Combine all masks
+    combined_mask = cv2.bitwise_or(mask_cream, mask_dark)
     combined_mask = cv2.bitwise_or(combined_mask, mask_brown)
         
-    # Apply morphological operations to clean up the color mask
+    # Morphological operation to clean mask
     kernel_clean = np.ones((5, 5), np.uint8)
     combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_CLOSE, kernel_clean, iterations=2)
     combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN, kernel_clean, iterations=1)
+
+    return combined_mask
+
+def detect_edges_laplacian(im):
+    # Convert to HSV for better color masking
+    hsv = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
+    combined_mask = get_mask(hsv)
     
     # Convert to grayscale
     gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
@@ -53,7 +53,7 @@ def detect_edges_laplacian(im):
     # Apply Laplacian on masked image
     laplacian = cv2.Laplacian(gray_masked, cv2.CV_64F, ksize=5)
     
-    # Convert to absolute values and normalize
+    # Convert to absolute values and normalise
     laplacian = np.absolute(laplacian)
     laplacian = cv2.normalize(laplacian, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
     
@@ -63,26 +63,19 @@ def detect_edges_laplacian(im):
     # Apply color mask again to ensure masked regions stay removed
     binary = cv2.bitwise_and(binary, binary, mask=combined_mask)
     
+    # Cleaning up the contour result again
     kernel = np.ones((2, 2), np.uint8)
     binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=1)
 
     return binary
 
-
-
 def preprocess_image(img):    
-    # Select edge detection method
     edges = detect_edges_laplacian(img)
-    
-    # Convert back to BGR for consistency
     edges_bgr = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
-    
     return edges_bgr
 
 
-# -------------------------------
-# OBJECT DETECTION FUNCTION
-# -------------------------------
+# Function to get the bounding box needed for yolo
 def detect_object_bbox(img_path):
     img = cv2.imread(str(img_path))
     if img is None:
@@ -93,29 +86,10 @@ def detect_object_bbox(img_path):
     # Convert to HSV for better color detection
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     
-    # Define color ranges
-    # For muted yellow/cream pieces (#8C7C48 - yellowish brown)
-    lower_blue = np.array([90, 50, 50])    # Hue ~90-130 is blue
-    upper_blue = np.array([130, 255, 255])
-    
-    # Dark brown/black mask (low value/brightness)
-    lower_dark = np.array([0, 0, 0])
-    upper_dark = np.array([180, 255, 60])  # Very low brightness (V channel)
-    
-    # Create masks
-    mask_cream = cv2.inRange(hsv, lower_blue, upper_blue)
-    mask_black = cv2.inRange(hsv, lower_dark, upper_dark)
-    
-    # Combine masks (either cream OR black pieces)
-    mask_combined = cv2.bitwise_or(mask_cream, mask_black)
-    
-    # Morphological operations to clean up and connect the chess piece
-    kernel = np.ones((7, 7), np.uint8)
-    mask_combined = cv2.morphologyEx(mask_combined, cv2.MORPH_CLOSE, kernel, iterations=3)
-    mask_combined = cv2.morphologyEx(mask_combined, cv2.MORPH_OPEN, kernel, iterations=1)
-    
+    combined_mask = get_mask(hsv)
+        
     # Find contours
-    contours, _ = cv2.findContours(mask_combined, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(combined_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
     if not contours:
         return None
@@ -125,7 +99,7 @@ def detect_object_bbox(img_path):
     
     for contour in contours:
         area = cv2.contourArea(contour)
-        # Filter out very small noise
+        # Ignore reall small contours as bounding boxes
         if area < 200:
             continue
             
@@ -133,15 +107,15 @@ def detect_object_bbox(img_path):
         M = cv2.moments(contour)
         if M["m00"] == 0:
             continue
-        cx = int(M["m10"] / M["m00"])
-        cy = int(M["m01"] / M["m00"])
+        contour_x = int(M["m10"] / M["m00"])
+        contour_y = int(M["m01"] / M["m00"])
         
         # Check if roughly in the middle region (within middle 80% of image)
-        if (0.15 * w < cx < 0.85 * w) and (0.15 * h < cy < 0.85 * h):
+        if (0.15 * w < contour_x < 0.85 * w) and (0.15 * h < contour_y < 0.85 * h):
             valid_contours.append(contour)
     
+    # If this doesnt work just take the largest contour
     if not valid_contours:
-        # If no valid contours in middle, just take the largest one
         if contours:
             largest_contour = max(contours, key=cv2.contourArea)
         else:
@@ -153,14 +127,14 @@ def detect_object_bbox(img_path):
     # Get bounding box
     x, y, box_w, box_h = cv2.boundingRect(largest_contour)
     
-    # Add some padding to the bounding box
+    # Add 5px of padding
     padding = 5
     x = max(0, x - padding)
     y = max(0, y - padding)
     box_w = min(w - x, box_w + 2 * padding)
     box_h = min(h - y, box_h + 2 * padding)
     
-    # Convert to YOLO format (normalized center coordinates and dimensions)
+    # Convert to YOLO format
     x_center = (x + box_w / 2) / w
     y_center = (y + box_h / 2) / h
     norm_width = box_w / w
@@ -168,29 +142,18 @@ def detect_object_bbox(img_path):
     
     return (x_center, y_center, norm_width, norm_height), (x, y, box_w, box_h)
 
-
-def make_clean_dir(path):
-    if path.exists():
-        shutil.rmtree(path)
-    path.mkdir(parents=True, exist_ok=True)
-
 if __name__ == "__main__":
-
     for split in ["train", "val", "test"]:
-        make_clean_dir(output_dir / "images" / split)
-        make_clean_dir(output_dir / "labels" / split)
-        make_clean_dir(output_dir / "visualizations" / split)
+        os.mkdir(f"{output_dir}/images/{split}")
+        os.mkdir(f"{output_dir}/labels/{split}")
+        os.mkdir(f"{output_dir}/visualisations/{split}")
 
     # Get all class directories
     class_dirs = sorted([d for d in source_dir.iterdir() if d.is_dir()])
 
-    # Extract second word from directory names (e.g., white_king -> king)
+    # Extract second word from directory names as contour is just the chess piece type not the colour too
     class_names = sorted(list(set([d.name.split('_')[1] for d in class_dirs])))
     class_to_id = {name: i for i, name in enumerate(class_names)}
-
-    print("Class mapping:")
-    for name, idx in class_to_id.items():
-        print(f"  {idx}: {name}")
 
     for class_dir in class_dirs:
         # Extract the piece type (second word after underscore)
@@ -212,44 +175,42 @@ if __name__ == "__main__":
 
         for split_name, split_files in splits.items():
             for img_path in split_files:
-                dest_img_dir = output_dir / "images" / split_name
-                dest_lbl_dir = output_dir / "labels" / split_name
-                dest_vis_dir = output_dir / "visualizations" / split_name
+                dest_img_dir = f"{output_dir}/images/{split_name}"
+                dest_lbl_dir = f"{output_dir}/labels/{split_name}"
+                dest_vis_dir = f"{output_dir}/visualisations/{split_name}"
                 
-                dest_img_dir.mkdir(parents=True, exist_ok=True)
-                dest_lbl_dir.mkdir(parents=True, exist_ok=True)
-                dest_vis_dir.mkdir(parents=True, exist_ok=True)
+                os.mkdir(dest_img_dir)
+                os.mkdir(dest_lbl_dir)
+                os.mkdir(dest_vis_dir)
 
-                # Read original image
                 img = cv2.imread(str(img_path))
                 if img is None:
-                    print(f"⚠️  Could not read {img_path.name}, skipping")
                     continue
 
                 # Detect bounding box on original image
                 bbox_result = detect_object_bbox(img_path)
                 
                 if bbox_result is None:
-                    print(f"⚠️  Could not detect object in {img_path.name}, using default bbox")
+                    print(f"No bounding box found in {img_path.name}, using default bbox")
                     yolo_bbox = (0.5, 0.65, 0.25, 0.45)
                     pixel_bbox = None
                 else:
                     yolo_bbox, pixel_bbox = bbox_result
 
                 # Copy original image
-                shutil.copy(img_path, dest_img_dir / img_path.name)
+                shutil.copy(img_path, f"{dest_img_dir}/{img_path.name}")
 
                 # Apply preprocessing and save
                 preprocessed_img = preprocess_image(img)
-                cv2.imwrite(str(dest_img_dir / img_path.name), preprocessed_img)
+                cv2.imwrite(f"{dest_img_dir}/{img_path.name}", preprocessed_img)
 
                 # Create YOLO label file
-                label_path = dest_lbl_dir / f"{img_path.stem}.txt"
+                label_path = f"{dest_lbl_dir}/{img_path.stem}.txt"
                 with open(label_path, "w") as f:
                     x_c, y_c, bbox_w, bbox_h = yolo_bbox
                     f.write(f"{class_id} {x_c:.6f} {y_c:.6f} {bbox_w:.6f} {bbox_h:.6f}\n")
 
-                # Create visualization with bounding box on original image
+                # Draw bbox on original image for debugging
                 if pixel_bbox is not None:
                     vis_img = img.copy()
                     x, y, box_w, box_h = pixel_bbox
@@ -262,17 +223,12 @@ if __name__ == "__main__":
                     
                     cv2.imwrite(str(dest_vis_dir / img_path.name), vis_img)
 
-    # -------------------------------
-    # CREATE data.yaml FILES
-    # -------------------------------
-    # Original images
-
     # Preprocessed images
-    yaml_path_prep = output_dir / "data.yaml"
-    with open(yaml_path_prep, "w") as f:
-        f.write(f"train: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/final_dataset_yolo_warp_contour/images/train\n")
-        f.write(f"val: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/final_dataset_yolo_warp_contour/images/val\n")
-        f.write(f"test: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/final_dataset_yolo_warp_contour/images/test\n\n")
+    yaml_path = f"{output_dir}/data.yaml"
+    with open(yaml_path, "w") as f:
+        f.write(f"train: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/src/datasets/dataset_yolo_warp_contour/images/train\n")
+        f.write(f"val: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/src/datasets/dataset_yolo_warp_contour/images/val\n")
+        f.write(f"test: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/src/datasets/dataset_yolo_warp_contour/images/test\n\n")
         f.write(f"nc: {len(class_names)}\n")
         f.write("names: [\n")
         for i, name in enumerate(class_names):

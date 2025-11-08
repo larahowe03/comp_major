@@ -1,0 +1,19 @@
+train: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/src/datasets/dataset_yolo_warp_colour/images/train
+val: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/src/datasets/dataset_yolo_warp_colour/images/val
+test: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/src/datasets/dataset_yolo_warp_colour/images/test
+
+nc: 12
+names: [
+  'black_bishop',
+  'black_castle',
+  'black_king',
+  'black_knight',
+  'black_pawn',
+  'black_queen',
+  'white_bishop',
+  'white_castle',
+  'white_king',
+  'white_knight',
+  'white_pawn',
+  'white_queen'
+]
