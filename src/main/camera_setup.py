@@ -13,7 +13,7 @@ def undistort(img, K, d):
     return cv2.undistort(img, K, d, None, K)
 
 
-def initialise_camera(phone_ip="10.19.204.249", port="4747"):
+def initialise_camera(phone_ip="192.168.0.155", port="4747"):
     """
     Initialize camera connection
     """

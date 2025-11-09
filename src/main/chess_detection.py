@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 import torch
 from ultralytics import YOLO
-from src.training.split_dataset_for_YOLO_contour import preprocess_image
 
 # ------------------------------------------------------------------------
 # DETECTIONS WITH MODELS FUNCTIONS
@@ -23,6 +22,68 @@ colour_model_path = "models/YOLOv8/runs_chess/final_model_warp_colour/weights/be
 device = 0 if torch.cuda.is_available() else 'cpu'
 contour_model = YOLO(contour_model_path)
 colour_model = YOLO(colour_model_path)
+
+def get_mask(hsv_im):
+    # Cream mask for white pieces
+    lower_cream = np.array([90, 50, 50]) 
+    upper_cream = np.array([130, 255, 255])
+    mask_cream = cv2.inRange(hsv_im, lower_cream, upper_cream)
+    
+    # Dark brown/black for black pieces
+    lower_dark = np.array([0, 0, 0])
+    upper_dark = np.array([180, 255, 60])
+    mask_dark = cv2.inRange(hsv_im, lower_dark, upper_dark)
+    
+    # Brown mask for properly including all black pieces
+    lower_brown = np.array([5, 30, 30])
+    upper_brown = np.array([25, 255, 150])
+    mask_brown = cv2.inRange(hsv_im, lower_brown, upper_brown)
+    
+    # Combine all masks
+    combined_mask = cv2.bitwise_or(mask_cream, mask_dark)
+    combined_mask = cv2.bitwise_or(combined_mask, mask_brown)
+        
+    # Morphological operation to clean mask
+    kernel_clean = np.ones((5, 5), np.uint8)
+    combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_CLOSE, kernel_clean, iterations=2)
+    combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN, kernel_clean, iterations=1)
+
+    return combined_mask
+
+def detect_edges_laplacian(im):
+    # Convert to HSV for better color masking
+    hsv = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
+    combined_mask = get_mask(hsv)
+    
+    # Convert to grayscale
+    gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+    
+    # Apply the color mask to the grayscale image
+    gray_masked = cv2.bitwise_and(gray, gray, mask=combined_mask)
+    
+    # Apply Laplacian on masked image
+    laplacian = cv2.Laplacian(gray_masked, cv2.CV_64F, ksize=5)
+    
+    # Convert to absolute values and normalise
+    laplacian = np.absolute(laplacian)
+    laplacian = cv2.normalize(laplacian, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+    
+    # Threshold
+    _, binary = cv2.threshold(laplacian, 30, 255, cv2.THRESH_BINARY)
+    
+    # Apply color mask again to ensure masked regions stay removed
+    binary = cv2.bitwise_and(binary, binary, mask=combined_mask)
+    
+    # Cleaning up the contour result again
+    kernel = np.ones((2, 2), np.uint8)
+    binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=1)
+
+    return binary
+
+def preprocess_image(img):    
+    edges = detect_edges_laplacian(img)
+    edges_bgr = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
+    return edges_bgr
 
 # See what colour is in the current box
 def check_colour(bbox_img):
