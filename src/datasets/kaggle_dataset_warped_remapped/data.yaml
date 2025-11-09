@@ -1,0 +1,17 @@
+names:
+- black_bishop
+- black_castle
+- black_king
+- black_knight
+- black_pawn
+- black_queen
+- white_bishop
+- white_castle
+- white_king
+- white_knight
+- white_pawn
+- white_queen
+path: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/src/datasets/kaggle_dataset_warped_remapped
+test: images/test
+train: images/train
+val: images/val

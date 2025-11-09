@@ -1,0 +1,11 @@
+names:
+- bishop
+- castle
+- king
+- knight
+- pawn
+- queen
+path: /Users/lara.howe/Library/CloudStorage/OneDrive-Accenture/Documents/comp vision/major_project/src/datasets/kaggle_dataset_warped_remapped_contours
+test: images/test
+train: images/train
+val: images/val
